@@ -30,7 +30,7 @@ its executable, or for a script connector its own Python environment inside that
 Stintmate does not install a connector, does not repair it, and does not provide or choose a
 Python (or any runtime) for it: the hub runs the `launcher` named in your descriptor and
 expects to reach the connector's channels; if it cannot, the connector does not work. A
-connector composes no user text in a language it does not have (section 7), and reads no file
+connector composes no user text in a language it does not have ([catalogs.md](catalogs.md#6-languages-and-fallback)), and reads no file
 of another app except the language setting (`hub\settings.json`).
 
 ## 2. The folder and the descriptor
@@ -179,7 +179,7 @@ must honour the unattended contract: it accepts `/VERYSILENT /SUPPRESSMSGBOXES /
 /PROGRESS="<file>" /LOG="<file>"`; it appends to the progress file JSON lines with the stages
 (`prepare`, `replace`, `files` with `done` and `total` counts, `register`) and a last line with
 stage `done` carrying `ok`, `reason` and `installed` (that line is the authority, the exit
-status is the backup); it writes the descriptor (section 2) as its last step; and when it
+status is the backup); it writes the descriptor ([descriptor.md](descriptor.md)) as its last step; and when it
 replaces a running connector it asks the hub to hold it (protocol section 1.2) instead of
 stopping it by itself. The AMS2 connector's installer is the worked example. Nothing else
 changes for a connector that is installed by hand.

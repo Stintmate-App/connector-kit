@@ -1,0 +1,280 @@
+{
+  "error_codes": [
+    "bad_request",
+    "blank_frame",
+    "busy",
+    "confirmation_required",
+    "connector_busy",
+    "connector_disconnected",
+    "engineer_only",
+    "game_not_running",
+    "internal",
+    "invalid_data",
+    "not_capturable",
+    "not_configured",
+    "not_implemented_by_connector",
+    "not_on_track",
+    "rate_limited",
+    "session_closed",
+    "timeout",
+    "too_large",
+    "unknown_action",
+    "unknown_code",
+    "unknown_session",
+    "window_minimized",
+    "writer_busy"
+  ],
+  "limits": {
+    "actions_max": 32,
+    "announce_data_max_bytes": 2048,
+    "guidance_max_items": 16,
+    "guidance_max_text": 1500,
+    "guidance_max_total": 8000,
+    "guidance_max_when": 120,
+    "max_wait_range_s": [
+      0.5,
+      600.0
+    ],
+    "rate_max_per_60s": 10,
+    "rate_window_s": 60.0,
+    "spotter_max_wait_s": 3.0,
+    "spotter_rate_max_per_60s": 120
+  },
+  "names": {
+    "connector": {
+      "methods": [
+        "connector.action",
+        "connector.capture_target",
+        "connector.live_frame"
+      ],
+      "state": [
+        "connector.status"
+      ],
+      "streams": [
+        "connector.telemetry"
+      ]
+    },
+    "connector_control": {
+      "events": [
+        "control.notices",
+        "control.services.desired"
+      ],
+      "methods": [
+        "control.activity.act",
+        "control.autostart.set",
+        "control.catalog.get",
+        "control.hide",
+        "control.managed",
+        "control.quit",
+        "control.service.start",
+        "control.service.stop",
+        "control.show"
+      ],
+      "state": [
+        "control.activity",
+        "control.state"
+      ]
+    },
+    "pitwall_events": [
+      "pitwall.announcements",
+      "pitwall.captures.stored",
+      "pitwall.connector_messages",
+      "pitwall.laps.completed",
+      "pitwall.sessions.ended",
+      "pitwall.sessions.started",
+      "pitwall.stints.started"
+    ],
+    "pitwall_methods": [
+      "pitwall.actions.declare",
+      "pitwall.announce",
+      "pitwall.catalog.declare",
+      "pitwall.guidance.declare",
+      "pitwall.write.catalog",
+      "pitwall.write.lap",
+      "pitwall.write.participant_laps",
+      "pitwall.write.pit_exit",
+      "pitwall.write.session_end",
+      "pitwall.write.session_start",
+      "pitwall.write.setup"
+    ],
+    "pitwall_state": [
+      "pitwall.catalogs",
+      "pitwall.connectors",
+      "pitwall.recording"
+    ]
+  },
+  "vocabularies": {
+    "agent_priorities": [
+      "low",
+      "normal",
+      "high"
+    ],
+    "audiences": [
+      "driver",
+      "agent"
+    ],
+    "channels": [
+      "abs",
+      "brake",
+      "clutch",
+      "dist",
+      "fl_brake_t",
+      "fl_pressure",
+      "fl_ride",
+      "fl_rps",
+      "fl_surface",
+      "fl_susp",
+      "fl_susp_vel",
+      "fl_t_air",
+      "fl_t_carcass",
+      "fl_t_in",
+      "fl_t_mid",
+      "fl_t_out",
+      "fl_wear",
+      "fr_brake_t",
+      "fr_pressure",
+      "fr_ride",
+      "fr_rps",
+      "fr_surface",
+      "fr_susp",
+      "fr_susp_vel",
+      "fr_t_air",
+      "fr_t_carcass",
+      "fr_t_in",
+      "fr_t_mid",
+      "fr_t_out",
+      "fr_wear",
+      "fuel",
+      "g_lat",
+      "g_long",
+      "g_vert",
+      "gear",
+      "invalid",
+      "pit_mode",
+      "rl_brake_t",
+      "rl_pressure",
+      "rl_ride",
+      "rl_rps",
+      "rl_surface",
+      "rl_susp",
+      "rl_susp_vel",
+      "rl_t_air",
+      "rl_t_carcass",
+      "rl_t_in",
+      "rl_t_mid",
+      "rl_t_out",
+      "rl_wear",
+      "rpm",
+      "rr_brake_t",
+      "rr_pressure",
+      "rr_ride",
+      "rr_rps",
+      "rr_surface",
+      "rr_susp",
+      "rr_susp_vel",
+      "rr_t_air",
+      "rr_t_carcass",
+      "rr_t_in",
+      "rr_t_mid",
+      "rr_t_out",
+      "rr_wear",
+      "speed",
+      "steer",
+      "t",
+      "tc",
+      "throttle",
+      "x",
+      "y",
+      "z"
+    ],
+    "groups": [
+      "laps",
+      "fuel",
+      "setup",
+      "session",
+      "flags",
+      "safety_car",
+      "penalties",
+      "race",
+      "rivals",
+      "car",
+      "spotter",
+      "test",
+      "other"
+    ],
+    "guidance_topics": [
+      "setup",
+      "capture",
+      "telemetry",
+      "session",
+      "car",
+      "track",
+      "tyres",
+      "fuel",
+      "strategy",
+      "controls",
+      "other"
+    ],
+    "kinds": [
+      "message",
+      "announcement"
+    ],
+    "lap_types": [
+      "formation",
+      "out",
+      "in",
+      "flying"
+    ],
+    "phases": [
+      "menus",
+      "garage",
+      "on_track",
+      "paused"
+    ],
+    "pit_modes": {
+      "0": "on track",
+      "1": "driving into the pits",
+      "2": "in the pit box",
+      "3": "driving out of the pits",
+      "4": "in the garage"
+    },
+    "priorities": [
+      "spotter",
+      "critical",
+      "high",
+      "normal",
+      "low"
+    ],
+    "session_types": [
+      "practice",
+      "qualifying",
+      "race",
+      "warmup",
+      "other"
+    ],
+    "setup_reasons": [
+      "session_start",
+      "pit_exit",
+      "engineer"
+    ],
+    "setup_sources": [
+      "telemetry",
+      "engineer"
+    ],
+    "surfaces": {
+      "0": "road",
+      "1": "kerb",
+      "2": "grass",
+      "3": "gravel",
+      "4": "sand",
+      "5": "run-off",
+      "6": "track-limit strip",
+      "7": "wall",
+      "8": "other off-track"
+    },
+    "time_sources": [
+      "official",
+      "measured"
+    ]
+  }
+}
