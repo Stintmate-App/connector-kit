@@ -1,10 +1,15 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-31)
 
-First content: the Apache-2.0 licence, the skeleton connector (stintmate-ipc 0.3.1) and the
-notes on the native interface.
+First release of the connector kit.
 
-Documentation: `docs/connector-protocol.md`, the connector protocol for outside authors, checked
-claim by claim against the code of Pitwall and of the AMS2 connector; its worked example runs
-against the Python binding.
+- The skeleton connector (`skeleton/`, Python, stintmate-ipc 0.3.1) with its conformance tests,
+  the fetch script for the transport wheel and the notes on the native interface (`native/`).
+- Documentation, each claim checked against the code of Pitwall and the managing app:
+  the author's guide (`docs/guide.md`), the connector protocol, the connectors page, the
+  channels Pitwall publishes, the data model, the write API with its JSON Schema, the
+  connector side of the application contract, the connector descriptor and the catalogs format.
+- `contract.json`: the connector-facing names, the error codes, the vocabularies and the limits
+  the documents state, as values read from the code.
+- The Apache-2.0 licence.

@@ -19,7 +19,7 @@ control endpoint.
 - [write-api.md](write-api.md) and [write-api.schema.json](write-api.schema.json): the
   messages a connector writes (one `pitwall.write.<type>` method each), replies, order rules.
 - The examples: the protocol's worked example (`examplesim`,
-  [section 9](connector-protocol.md#9-worked-example)) and the [`skeleton/`](../skeleton/README.md)
+  [section 9](connector-protocol.md#9-worked-example-python-the-reference-package)) and the [`skeleton/`](../skeleton/README.md)
   connector, which writes a complete synthetic session (catalog, pit exits, laps with channels,
   one invalid lap, two stints).
 - The reference connector: the **AMS2 connector**, its own repository
@@ -200,7 +200,7 @@ for a Python connector, and a copy of [`skeleton/`](../skeleton/README.md) as a 
    see the events and your status.
 5. **Compare with a known stream.** The skeleton covers out, in and flying laps, an invalid
    lap, two stints and a session that ends; the worked example in
-   [protocol section 9](connector-protocol.md#9-worked-example) is the smallest write
+   [protocol section 9](connector-protocol.md#9-worked-example-python-the-reference-package) is the smallest write
    sequence. Diff what your connector writes against the shape of those.
 6. **In the car**: one practice session; check laps, stints and times against the simulator's
    own timing screen, and the connector's state in the Stintmate hub and through the engineer's

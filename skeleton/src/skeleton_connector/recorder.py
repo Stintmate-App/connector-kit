@@ -176,11 +176,10 @@ class Recorder:
                 raise                          # bad_request & co: not retryable (section 3.1)
         return None
 
-    def _announce(self, code: str, params: dict[str, Any], session_key: str) -> None:
+    def _announce(self, code: str, params: dict[str, Any]) -> None:
         """Not idempotent and never queued: an announcement is worth something only now."""
         try:
-            self.client.call("pitwall.announce", {"code": code, "params": params,
-                                                  "session_key": session_key}, timeout=5)
+            self.client.call("pitwall.announce", {"code": code, "params": params}, timeout=5)
         except (NotConnected, ConnectionLost, RemoteError) as exc:
             log.info("announce %s skipped: %s", code, exc)
 
@@ -235,7 +234,7 @@ class Recorder:
                 break
             self._set(lap=reply["lap"], phase="on_track" if lap_type != "in" else "garage")
             if time_s is not None and valid:
-                self._announce("lap_done", {"lap": sim_lap, "time": time_s}, key)
+                self._announce("lap_done", {"lap": sim_lap, "time": time_s})
         self._write("session_end", {"session_key": key,
                                     "ended_at": clock.isoformat(timespec="seconds")},
                     f"{CONNECTOR_ID}/{key}/end")
