@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (2026-10-31)
+
+- `contract.json` lists every method and event name the documents use.
+
 ## 0.1.0 (2026-10-31)
 
 First release of the connector kit.
