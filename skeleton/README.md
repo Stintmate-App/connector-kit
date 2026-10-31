@@ -47,7 +47,7 @@ Needs Windows and [uv](https://docs.astral.sh/uv/) only: no git, no Rust (uv ins
    <pid>`. `main.py` takes the mutex `Local\SkeletonConnector.Control` (the descriptor names it:
    the hub's liveness check), serves the endpoint and waits. `control.quit` answers at once and
    the process ends a moment later. With `--managed`, `ControlApp` leaves the delegable service
-   to the hub (it sends `control.service.start/stop` within a second) and watches the parent
+   to the hub (it sends `control.service.start/stop` after the endpoint answers) and watches the parent
    process; alone, it starts the recorder itself.
 4. **The control endpoint.** `ControlApp` serves the required profile (docs/contract.md
    5.6). `control.state` carries the common fields plus `connector`, `game_running`, `pitwall`,

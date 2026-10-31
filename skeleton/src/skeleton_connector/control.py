@@ -75,8 +75,8 @@ class ControlApp:
             self._watch_parent()
         else:
             self._start_recorder()                  # alone: the app's own startup setting
-        # Managed: the hub sends control.service.start/stop for each delegable service
-        # within a second (protocol section 1.1); do not start it here.
+        # Managed: the hub sends control.service.start/stop for each delegable service,
+        # restoring the user's choice (protocol section 1.1); do not start it here.
         return self
 
     def stop(self) -> None:
