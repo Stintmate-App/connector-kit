@@ -14,7 +14,7 @@ this page differ, the link wins.
 | Laps, stints and the telemetry study | [connector-protocol.md section 11](connector-protocol.md#11-laps-and-stints-what-the-connector-sends), [section 10 here](#10-the-telemetry-study-and-the-findings-document) |
 | Mapping a simulator onto Pitwall's model, and testing | [connectors.md](connectors.md) |
 | A minimal connector to copy | [`skeleton/`](../skeleton/README.md) |
-| The transport | [stintmate-ipc](https://github.com/Stintmate-App/stintmate-ipc) (its `SPEC.md`) and the Python package `stintmate-ipc` (a wheel and the C header are assets of each stintmate-ipc release; the skeleton fetches the wheel with `fetch-ipc.ps1`, so a Python connector needs only `uv`, no git, no Rust; other languages use the C ABI described in [`native/`](../native/README.md)) |
+| The transport | [stintmate-ipc](https://github.com/Stintmate-App/stintmate-ipc) (its `SPEC.md`) and the Python package `stintmate-ipc` (a wheel and the C header are assets of each stintmate-ipc release; the skeleton fetches the wheel with `fetch-ipc.ps1`, for the Python skeleton; a connector in any language loads `stintmate_ipc.dll` through the C ABI described in [`native/`](../native/README.md)) |
 
 ## 1. What a connector is
 

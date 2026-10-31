@@ -1,5 +1,10 @@
 # Stintmate connector kit
 
+A connector can be written in any language that loads a DLL. The transport between a connector
+and Stintmate is `stintmate_ipc.dll`, a native library with a C ABI (`native/` says where to
+download it, with its header). The skeleton in `skeleton/` is a Python example: read it as a
+reference in any language, and copy it if you write Python.
+
 What you need to build a Stintmate connector for a game that has none: the documents that say
 what a connector is and what it must do, and the smallest working connector to start from. The
 transport between a connector and Stintmate (Stintmate IPC) is public too:
@@ -20,9 +25,9 @@ Licensed under the Apache License 2.0 (see `LICENSE` and `NOTICE`).
 | `docs/events.md` | The event feed |
 | `contract.json` | The connector-facing names, codes, vocabularies and limits, machine readable |
 | `native/` | For a connector in any other language: where the C header and the native DLL come from (the stintmate-ipc release) |
-| `skeleton/` | The smallest working connector (a fake simulator that plays one synthetic session through the real contract): copy it, rename it, replace the fake recorder with the reading of your game. Its README is the step by step; `fetch-ipc.ps1` downloads the `stintmate-ipc` wheel (the transport, with its native DLL) into `vendor/`, so a Python connector needs only `uv`; `install.ps1` registers it, `tests/test_conformance.py` checks it |
+| `skeleton/` | The smallest working connector (a fake simulator that plays one synthetic session through the real contract): copy it, rename it, replace the fake recorder with the reading of your game. Python, an example to read and copy; its README is the step by step. `fetch-ipc.ps1` downloads the `stintmate-ipc` wheel (the Python binding, with the native DLL) into `vendor/`; `install.ps1` registers it, `tests/test_conformance.py` checks it |
 
-The kit carries no binary and no C header: they are assets of the stintmate-ipc release.
+The kit carries no binary and no C header: they are assets of the stintmate-ipc release (`stintmate_ipc.dll`, `stintmate_ipc.h`, `stintmate-ipc-check.exe`).
 
 ## Installed with Stintmate
 

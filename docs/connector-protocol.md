@@ -692,7 +692,7 @@ for a new game frame, at most `rate_hz` per second, and one repeat with `fresh` 
 while nothing changes (menus, pause); produce samples **only while subscribed**; never block
 (the stream drops the oldest). Pitwall subscribes only while brake cues can fire: the connector
 declares the stream, `connector.status.live.session_type` is `practice` (the cues also accept
-`test`, which is not a data-model session type) and there is an enabled reference for that car
+`test`, a live session type the connector reports for a test day; it is not a stored one) and there is an enabled reference for that car
 and layout. `flying` is the connector's view (a timed lap begun on track); the line crossing
 just ahead after an out lap is predicted by Pitwall.
 

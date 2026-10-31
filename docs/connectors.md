@@ -171,11 +171,12 @@ for a Python connector, and a copy of [`skeleton/`](../skeleton/README.md) as a 
 1. **Run the skeleton's tests** to see the harness working, from a copy of `skeleton/`:
 
    ```
-   .\fetch-ipc.ps1
+   powershell -ExecutionPolicy Bypass -File .\fetch-ipc.ps1
    uv sync
    uv run pytest -q
    ```
 
+   (`-ExecutionPolicy Bypass` allows that one run and changes no setting.)
    `fetch-ipc.ps1` puts the `stintmate-ipc` wheel in `vendor/`; the tests run the recorder
    against a fake Pitwall, serve the control endpoint as the hub uses it, run
    `stintmate-ipc-check server` against it and check the descriptor. Keep that file as the
