@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.3 (2026-11-01)
+
+- The skeleton fetches the `stintmate-ipc` wheel from the `stintmate-ipc-python` release (the
+  wheel and its `SHA256SUMS`); the C header is no longer downloaded. `STINTMATE_IPC_READ_TOKEN`
+  reads the release while that repository is private. The native notes still point at the
+  `stintmate-ipc` releases for the DLL, the header and the check tool.
+- Release workflows (`ci`, `release`, run by hand): the checks, and a release with
+  `connector-kit-<version>.zip` and `SHA256SUMS`. `scripts/check-docs.sh` is the documentation
+  check.
+
 ## 0.1.2 (2026-10-31)
 
 - The kit says first that a connector can be written in any language that loads a DLL; the

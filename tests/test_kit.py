@@ -4,7 +4,6 @@ Run from the repository root: ``uv run --no-project --with pytest pytest tests``
 skeleton's own tests are in ``skeleton/tests`` and run from ``skeleton/``.
 """
 
-import hashlib
 import os
 import re
 import shutil
@@ -97,9 +96,7 @@ def test_fetch_ipc_rejects_a_corrupted_wheel_and_leaves_nothing(tmp_path):
     version = re.search(r'^\$IpcVersion = "([^"]+)"', fetch, re.M).group(1)
     wheel = f"stintmate_ipc-{version}-py3-none-win_amd64.whl"
     (release / wheel).write_bytes(b"PK corrupted")
-    (release / "stintmate_ipc.h").write_bytes(b"/* header */")
-    sums = (f"{'0' * 64}  {wheel}\n"
-            f"{hashlib.sha256(b'/* header */').hexdigest()}  stintmate_ipc.h\n")
+    sums = f"{'0' * 64}  {wheel}\n"
     (release / "SHA256SUMS").write_text(sums, encoding="utf-8")
     env = {**os.environ, "STINTMATE_IPC_RELEASE": str(release)}
     r = subprocess.run([POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
