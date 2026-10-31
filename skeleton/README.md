@@ -12,8 +12,20 @@ built). Connectors in other languages use the same implementation through its C 
 or the protocol spec directly. It imports nothing from any Stintmate app, and a test
 enforces it.
 
-Needs Windows and [uv](https://docs.astral.sh/uv/) only: no git, no Rust (uv installs Python
-3.12 itself).
+This is an example to read and copy; a connector in another language follows the same steps
+with the same contract. You need [uv](https://docs.astral.sh/uv/) only to run its tests or to
+develop on it (the project asks for Python `>=3.12`, `requires-python` in `pyproject.toml`; uv
+fetches a matching Python). Install uv with:
+
+```
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+It needs Windows; no git, no Rust.
+
+A default Windows refuses `.\fetch-ipc.ps1` and `.\install.ps1`, so the commands below are run as
+`powershell -ExecutionPolicy Bypass -File .\<script>.ps1`. That allows that one run and changes
+no setting.
 
 ## What is in it
 
@@ -35,13 +47,13 @@ Needs Windows and [uv](https://docs.astral.sh/uv/) only: no git, no Rust (uv ins
    `stintmate_ipc.find_workspace()`; if there is none it logs and retries. The recorder's
    `Client` takes `KeyFile(path)` (create off): a missing key is reported (`Recorder.message`)
    and retried.
-2. **Install.** `.\install.ps1` (it runs `fetch-ipc.ps1` first; optionally `-Destination <folder>`; it needs no workspace) makes
+2. **Install.** `powershell -ExecutionPolicy Bypass -File .\install.ps1` (it runs `fetch-ipc.ps1` first; optionally `-Destination <folder>`; it needs no workspace) makes
    `<Destination>\.venv` and installs this project into it (a copy, so the folder you
    cloned can go away), then writes `%LOCALAPPDATA%\Stintmate\connectors\skeleton.json`
    atomically: the launcher is `<Destination>\.venv\Scripts\skeleton-connector.exe`, absolute,
    and `logs` name files in `<workspace>\connectors\skeleton\`. The contract asks only for the
    file to be in place and correct; an installer, a file you ship or a command are all fine.
-   `.\install.ps1 -Uninstall` removes the file (only if its launcher is under the destination)
+   `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall` removes the file (only if its launcher is under the destination)
    and the folder. Stintmate installs nothing for you and provides no Python.
 3. **Being started.** The hub runs the launcher with `--workspace <w> --managed --parent-pid
    <pid>`. `main.py` takes the mutex `Local\SkeletonConnector.Control` (the descriptor names it:
@@ -75,7 +87,7 @@ Needs Windows and [uv](https://docs.astral.sh/uv/) only: no git, no Rust (uv ins
    `<workspace>\hub\settings.json` and loads the pack `<workspace>\locales\<tag>\skeleton-connector.json`.
 7. **Test.**
    ```
-   .\fetch-ipc.ps1    # once: the stintmate-ipc wheel into vendor/
+   powershell -ExecutionPolicy Bypass -File .\fetch-ipc.ps1    # once: the stintmate-ipc wheel into vendor/
    uv sync
    uv run pytest -q
    ```
