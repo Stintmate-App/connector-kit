@@ -98,6 +98,7 @@ no setting.
 
 ## Try it by hand
 
+This needs an installed Stintmate (https://stintmate.app) with its workspace and `ipc\key`.
 With the Stintmate hub installed and a workspace on disk, run `install.ps1` as above and start
 the hub: the connector is listed, and its recorder plays the session as soon as Pitwall runs.
 Without the hub, start `skeleton-connector.exe --workspace <workspace>` yourself (needs
@@ -105,7 +106,7 @@ Without the hub, start `skeleton-connector.exe --workspace <workspace>` yourself
 
 ## Using this as your own connector
 
-Rename the package, `CONNECTOR_ID` (equal to the folder name; `^[a-z0-9_-]+$`), the mutex, the
+Rename the package, `CONNECTOR_ID` (equal to the folder name; `^[a-z0-9][a-z0-9_-]{0,31}$`), the mutex, the
 service ids and `sim`; keep `install.ps1` and the descriptor in step (the test fails when they
 drift). Replace the script in `recorder.py` with the study of your simulator
 ([guide, section 10](../docs/guide.md#10-the-telemetry-study-and-the-findings-document)):

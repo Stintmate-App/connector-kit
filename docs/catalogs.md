@@ -30,7 +30,10 @@ learns what to translate without reading the app's files. No file has two automa
   open: no registration. `connector.<id>` is reserved for connectors' event catalogs (the
   announcements Pitwall holds). A connector only declares its English (or own-language)
   catalogs; **the hub translates every catalog**, the connector's own and Pitwall's alike.
-  Pattern: `^[a-z][a-z0-9-]{0,31}(\.[a-z0-9-]{1,32})?$`.
+  Pattern: `^[a-z][a-z0-9-]{0,31}(\.[a-z0-9-]{1,32})?$`. A connector's catalog is named
+  `<id>-connector`, and a connector id may also hold `_` and start with a digit
+  (`^[a-z0-9][a-z0-9_-]{0,31}$`), so such a name can fall outside this pattern; no code of
+  this repository checks the pattern.
 - Only English is built in. A pack may hold any subset of the catalogs; a missing file, key or
   number word falls back (section 6). A pack for `en` itself is allowed (it rewords English).
 - The workspace layout and the language setting: [descriptor.md](descriptor.md#languages-locales-and-the-language-setting).
@@ -81,7 +84,7 @@ e.g. `audience` and `priority` (`spotter`, `critical`, `high`, `normal`, `low`; 
 
 Rules for all texts: plain text, no markup (rich text is built by the code around the
 message), no control characters (U+0000-U+001F, U+007F); a text written to be **spoken** (any
-key under `speech.`) is at most 200 characters after filling with typical values (the limit for spoken texts).
+key under `speech.`) is at most 200 characters as written (placeholders count as written; the limit for spoken texts).
 
 ## 3. Keys
 
@@ -189,7 +192,7 @@ with `QLocale` in the Qt apps; no group separators, so every app writes a number
 ## 7. Number catalog (`numbers.json`)
 
 The words and patterns to say numbers aloud, and the language's plural rules. Generated per
-language by the user's agent (the user's agent), validated by tests per kind; the
+language by the user's AI agent, validated by tests per kind; the
 composition rules are code, the file gives only words and patterns.
 
 ```json

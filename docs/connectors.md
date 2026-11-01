@@ -52,7 +52,7 @@ Before writing code, find (and write down in the connector's own docs, with how 
 ## 3. Mapping to the model
 
 - `sim`: a short lowercase id for the simulator (`acc`, `rf2`, `iracing`...), the same in every
-  run, matching `^[a-z0-9_-]{1,32}$`; `sim_name`: its display name. Both go in the hello
+  run, matching `^[a-z0-9_-]{1,32}$` (the connector id: `^[a-z0-9][a-z0-9_-]{0,31}$`); `sim_name`: its display name. Both go in the hello
   metadata (`connector_id`, `connector_name`, `sim`, `sim_name`, `service`).
 - **Catalogue**: send a `catalog` before the session that uses a car or a layout (repeat it
   whenever you see a new one; it upserts). Give `length_m` for layouts and `fuel_capacity_l`

@@ -17,7 +17,9 @@ One validator and one writer behind both:
   `details.reply`. The write API's `hello` is not sent: Pitwall builds it from the connection's
   hello metadata. Pitwall fills `session_id` from the `session_key` and runs one writer per
   connector, in the order received.
-- **`pitwall-ingest`** (JSON Lines on stdin/stdout): for imports, tests and dry runs, run by
+- **`pitwall-ingest`** (JSON Lines on stdin/stdout; an import tool of Pitwall, not part of this
+  kit and not run by a connector author; over IPC use the write methods of
+  [connector-protocol.md](connector-protocol.md)): for imports, tests and dry runs, run by
   whoever operates Pitwall rather than by a connector. **While Pitwall's core runs it is the
   only writer**, so a run that would write is refused at once with one reply
   `{"ok": false, "line": 0, "error": "writer_busy: ..."}` and exit code 2; `--dry-run` always
@@ -61,9 +63,10 @@ In a dry run every reply also has `"dry_run": true`.
 ## Messages
 
 Every message has `"type"`. Absent and `null` mean "not given". Full field list, types and
-ranges: the JSON Schema.
+ranges: the JSON Schema. Ids are at most 200 characters and names at most 500. `session_id`,
+`lap` and `lap_id` fields exist for import mode only.
 
-- **`hello`**: first, once per connection: `sim` (lowercase id, e.g. `ams2`; part of every
+- **`hello`**: first, once per connection: `sim` (lowercase id, `^[a-z0-9][a-z0-9_-]{0,31}$`, e.g. `ams2`; part of every
   catalogue key), `sim_name`, `connector`, optional `connector_version`, `model_version` (2).
 - **`catalog`**: repeatable; upserts by id: `classes` `[{class_id, name}]`, `cars`
   `[{car_id, name, class_id?, fuel_capacity_l?}]` (`fuel_capacity_l`: the tank, L, > 0),
@@ -76,7 +79,7 @@ ranges: the JSON Schema.
   `conditions` `{ambient_c, track_c, rain, wind_speed_ms, cloud}`. Reply: the `session_id` to
   use in the session's messages.
 - **`lap`**: `session_id`, `lap_type`, optional `time_s` (absent = not timed), `valid`
-  (default true), `time_source` (default `official` when timed), `measured_time_s` (the
+  (default true), `time_source` (`official` or `measured`; default `official` when timed), `measured_time_s` (the
   connector's own measurement kept next to an official time; shown only), `started_at`,
   `sim_lap`, `fuel_start_l`, `fuel_used_l`, `max_speed_kmh` (default: the maximum of `speed`),
   `conditions` (at the end of the lap), `sectors` `[{time_s}]` in order (a sector with no
@@ -118,7 +121,9 @@ with raw bytes instead of base64.
 ## Order rules
 
 1. `hello` first, once. Anything else before it: `<type>: send hello first`.
-2. One session open at a time: `session_start` while one is open is refused; `lap`,
+2. One session open at a time. In the `pitwall-ingest` import tool `session_start` while one is
+   open is refused; over IPC a `session_start` with a new key closes the open session (see
+   [connector-protocol.md section 3.1](connector-protocol.md)). `lap`,
    `setup`, `participant_laps` and `session_end` must carry the open session's id (`lap` with
    no open session: `lap.session_id: no open session (send session_start first)`).
 3. References: `car_id` and `track_id`/`layout_id` must be catalogued for the connection's

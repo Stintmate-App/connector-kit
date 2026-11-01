@@ -64,7 +64,7 @@ control endpoint. It lives in
   same connector, offer `uninstall` (the command line that removes your install silently) so
   another build's setup can replace yours. Your logs go in `<workspace>\connectors\<id>\` (list
   their names in `logs`). You need no workspace to install. You are responsible for everything
-  your connector needs to run (its executable, or its own Python environment inside its folder);
+  your connector needs to run (its executable, or its own Python environment inside its install folder);
   the hub only launches the `launcher` you name.
 - **One connection per process** of the connector (each service: the recorder, a helper...).
   Its hello (`auth.peer`):
@@ -74,7 +74,7 @@ control endpoint. It lives in
   | `app` | `connector-<id>` (`connector-examplesim`) |
   | `process` | the service: `recorder`... |
   | `name`, `version` | the connector's display name and version |
-  | `meta` | REQUIRED `{connector_id: "<id>", connector_name, sim, sim_name, service}`, every value a non-empty string; `connector_id` is the slug of `app`; `sim` matches `^[a-z0-9_-]{1,32}$`; `service` equals `process` |
+  | `meta` | REQUIRED `{connector_id: "<id>", connector_name, sim, sim_name, service}`, every value a non-empty string; `connector_id` is the slug of `app` and matches `^[a-z0-9][a-z0-9_-]{0,31}$`; `sim` matches `^[a-z0-9_-]{1,32}$`; `service` equals `process` |
 
   A connection whose `meta` fails these is closed with `bye` `bad_request` (the message names
   the problem).
@@ -413,6 +413,9 @@ sent while you run.
   through the tool `get_connector_guidance(topic?)`, and offers one prompt per topic,
   `guidance_<connector id>_<topic>`. The agent reads the `when` lines at the start and fetches a
   topic's text before acting on it.
+  The instructions carry only about the first 400 characters of a connector's `topic - when` list
+  (and at most four connectors), so put the important topics first and keep each `when` short;
+  the full texts are fetched on demand.
 
 A good item states a fact and what to do about it:
 
@@ -599,8 +602,10 @@ and `log` are yours.
 #### Testing
 
 1. Check the declaration before connecting: the [skeleton](../skeleton/) carries a conformance
-   test that runs its declared actions through the rules of this section, naming every refused
-   field; copy it for yours.
+   test that checks the keywords, descriptions and string bounds of the skeleton's own declared
+   actions (it handles `object`, `string` and `boolean` schemas only, and does not name the
+   refused field); it is a starting point to copy, extend it for numbers, arrays, units, bounds
+   and the size limits of this section.
 2. Connect your connector to a running Pitwall, then ask the agent: in a session with the
    Pitwall MCP server, `list_connector_actions("ping")` shows what you declared and
    `send_connector_action("test.ping", {"say": false})` sends it. `pitwall.actions.send` is
