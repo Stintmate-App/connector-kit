@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4 (2026-11-01)
+
+- The skeleton and the native notes use `stintmate-ipc` 0.3.2. The contract is unchanged.
+
 ## 0.1.3 (2026-11-01)
 
 - The skeleton fetches the `stintmate-ipc` wheel from the `stintmate-ipc-python` release (the

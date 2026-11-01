@@ -10,7 +10,7 @@ dependencies = [
 
 [tool.uv.sources]
 # The Python binding of the Rust implementation: the wheel that fetch-ipc.ps1 puts in vendor/.
-stintmate-ipc = { path = "vendor/stintmate_ipc-0.3.1-py3-none-win_amd64.whl" }
+stintmate-ipc = { path = "vendor/stintmate_ipc-0.3.2-py3-none-win_amd64.whl" }
 
 [project.gui-scripts]
 skeleton-connector = "skeleton_connector.main:main"

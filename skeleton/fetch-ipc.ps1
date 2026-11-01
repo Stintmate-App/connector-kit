@@ -18,7 +18,7 @@
 #>
 $ErrorActionPreference = 'Stop'
 
-$IpcVersion = "0.3.1"
+$IpcVersion = "0.3.2"
 $wheel = "stintmate_ipc-$IpcVersion-py3-none-win_amd64.whl"
 $sums = 'SHA256SUMS'
 $vendor = Join-Path $PSScriptRoot 'vendor'

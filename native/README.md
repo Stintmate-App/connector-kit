@@ -17,7 +17,7 @@ This kit carries no header and no binary. Download them directly from the stintm
 - `SHA256SUMS`: the checksums of every file of the release, one `<sha256>  <name>` line each.
   Verify what you download, for example with `Get-FileHash -Algorithm SHA256 <file>`.
 
-`stintmate_ipc-0.3.1-py3-none-win_amd64.whl`, the Python binding (a zip file that carries the same
+`stintmate_ipc-0.3.2-py3-none-win_amd64.whl`, the Python binding (a zip file that carries the same
 DLL and tool under `stintmate_ipc/_bin/`), is an asset of the release `v0.3.1` of the
 stintmate-ipc-python repository
 (https://github.com/Stintmate-App/stintmate-ipc-python/releases/tag/v0.3.1), with its own
