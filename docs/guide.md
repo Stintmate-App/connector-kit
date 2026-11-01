@@ -157,9 +157,8 @@ installed as the console command `stintmate-ipc-check`) tests an endpoint in any
 language. The wheel and a `SHA256SUMS` file are the release assets of the
 stintmate-ipc-python repository (https://github.com/Stintmate-App/stintmate-ipc-python,
 `releases/download/v<version>/`); `skeleton/fetch-ipc.ps1` downloads them into
-`vendor/` and verifies the wheel, `STINTMATE_IPC_RELEASE` (a base URL or a local folder) replaces the
-source, and `STINTMATE_IPC_READ_TOKEN` (a GitHub token that can read the release) is needed only
-while that repository is private. The C header and the standalone tool are assets of the
+`vendor/` and verifies the wheel, and `STINTMATE_IPC_RELEASE` (a base URL or a local folder)
+replaces the source. The C header and the standalone tool are assets of the
 stintmate-ipc releases (see [`native/`](../native/README.md)):
 
 ```

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4+docs.2 (2026-11-01)
+
+- The repository is prepared for being public: the workflows run on GitHub-hosted Windows runners only (the `runner` input is gone), and `STINTMATE_IPC_READ_TOKEN` is gone from the workflows, from `skeleton/fetch-ipc.ps1` and from the docs, so the wheel is downloaded anonymously over HTTPS (`STINTMATE_IPC_RELEASE` stays). `SECURITY.md` says how to report a vulnerability, and the README has a "Contributing" section. The contract and the skeleton's behaviour are unchanged.
+
 ## 0.1.4+docs.1 (2026-11-01)
 
 - Documentation corrected against the code; the code and the skeleton are unchanged (the kit's

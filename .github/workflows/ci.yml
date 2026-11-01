@@ -2,18 +2,8 @@ name: ci
 
 # Minutes are limited (free organisation, Windows counts double): CI runs by hand only
 # (Actions > ci > Run workflow); run the same checks locally before each merge.
-# It runs on the organisation's own Windows runner `stintmate-win` (no GitHub minutes; private
-# repositories and workflow_dispatch only); `windows-latest` is the fallback when it is down.
-# The wheel of the skeleton is read from the stintmate-ipc-python release; while that repository
-# is private the secret STINTMATE_IPC_READ_TOKEN (a token that can read it) is needed.
 on:
   workflow_dispatch:
-    inputs:
-      runner:
-        description: Where to run
-        type: choice
-        options: [stintmate-win, windows-latest]
-        default: stintmate-win
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -23,9 +13,9 @@ permissions:
   contents: read
 
 jobs:
-  # One job: every job pays the runner's start, and the runner takes one job at a time.
+  # One job: every job pays the runner's start.
   ci:
-    runs-on: ${{ inputs.runner == 'windows-latest' && 'windows-latest' || fromJSON('["self-hosted", "stintmate-win"]') }}
+    runs-on: windows-latest
     timeout-minutes: 30
     defaults:
       run:
@@ -35,8 +25,6 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: Fetch the transport wheel
         shell: pwsh
-        env:
-          STINTMATE_IPC_READ_TOKEN: ${{ secrets.STINTMATE_IPC_READ_TOKEN }}
         run: skeleton/fetch-ipc.ps1
       - name: Skeleton tests
         working-directory: skeleton
