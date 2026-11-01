@@ -14,7 +14,7 @@ this page differ, the link wins.
 | Laps, stints and the telemetry study | [connector-protocol.md section 11](connector-protocol.md#11-laps-and-stints-what-the-connector-sends), [section 10 here](#10-the-telemetry-study-and-the-findings-document) |
 | Mapping a simulator onto Pitwall's model, and testing | [connectors.md](connectors.md) |
 | A minimal connector to copy | [`skeleton/`](../skeleton/README.md) |
-| The transport | [stintmate-ipc](https://github.com/Stintmate-App/stintmate-ipc) (its `SPEC.md`) and the Python package `stintmate-ipc` (a wheel and the C header are assets of each stintmate-ipc release; the skeleton fetches the wheel with `fetch-ipc.ps1`, for the Python skeleton; a connector in any language loads `stintmate_ipc.dll` through the C ABI described in [`native/`](../native/README.md)) |
+| The transport | [stintmate-ipc](https://github.com/Stintmate-App/stintmate-ipc) (its `SPEC.md`) and the Python package `stintmate-ipc` (the DLL, the C header and the check tool are assets of each stintmate-ipc release; the wheel is an asset of each [stintmate-ipc-python](https://github.com/Stintmate-App/stintmate-ipc-python) release, which the skeleton fetches with `fetch-ipc.ps1`, for the Python skeleton; a connector in any language loads `stintmate_ipc.dll` through the C ABI described in [`native/`](../native/README.md)) |
 
 ## 1. What a connector is
 
@@ -139,10 +139,13 @@ your own language (English usually) and never translate.
 
 `stintmate-ipc-check` (inside the `stintmate-ipc` wheel, under `stintmate_ipc/_bin/`, and
 installed as the console command `stintmate-ipc-check`) tests an endpoint in any
-language. The wheel, the C header `stintmate_ipc.h` and a `SHA256SUMS` file are the release assets of
-the stintmate-ipc repository (`releases/download/v<version>/`); `skeleton/fetch-ipc.ps1` downloads them into
-`vendor/` and verifies them, and `STINTMATE_IPC_RELEASE` (a base URL or a local folder) replaces the
-source:
+language. The wheel and a `SHA256SUMS` file are the release assets of the
+stintmate-ipc-python repository (https://github.com/Stintmate-App/stintmate-ipc-python,
+`releases/download/v<version>/`); `skeleton/fetch-ipc.ps1` downloads them into
+`vendor/` and verifies the wheel, `STINTMATE_IPC_RELEASE` (a base URL or a local folder) replaces the
+source, and `STINTMATE_IPC_READ_TOKEN` (a GitHub token that can read the release) is needed only
+while that repository is private. The C header and the standalone tool are assets of the
+stintmate-ipc releases (see [`native/`](../native/README.md)):
 
 ```
 stintmate-ipc-check server <pipe> --key-file <workspace>\ipc\key
@@ -187,7 +190,7 @@ changes for a connector that is installed by hand.
 ## The skeleton as the smallest example
 
 [`skeleton/`](../skeleton/README.md) is a complete
-connector with a fake simulator, using only the `stintmate-ipc` package (a release wheel that `fetch-ipc.ps1` downloads; it needs only `uv`): its
+connector with a fake simulator, using only the `stintmate-ipc` package (the release wheel of stintmate-ipc-python that `fetch-ipc.ps1` downloads; it needs only `uv`): its
 `install.ps1` creates the connector's own Python environment in its folder and writes the
 descriptor with the absolute launcher; it serves the required control profile with one delegable
 service, declares an announcement catalog and a guidance item, writes a synthetic session with

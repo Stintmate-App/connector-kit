@@ -17,10 +17,14 @@ This kit carries no header and no binary. Download them directly from the stintm
 - `SHA256SUMS`: the checksums of every file of the release, one `<sha256>  <name>` line each.
   Verify what you download, for example with `Get-FileHash -Algorithm SHA256 <file>`.
 
-The release also holds `stintmate_ipc-0.3.1-py3-none-win_amd64.whl`, the Python binding (a zip
-file that carries the same DLL and tool under `stintmate_ipc/_bin/`). Only Python connectors need
-it; `skeleton/fetch-ipc.ps1` downloads and verifies it into `skeleton/vendor/`, and the
-environment variable `STINTMATE_IPC_RELEASE` replaces the source (a base URL or a local folder).
+`stintmate_ipc-0.3.1-py3-none-win_amd64.whl`, the Python binding (a zip file that carries the same
+DLL and tool under `stintmate_ipc/_bin/`), is an asset of the release `v0.3.1` of the
+stintmate-ipc-python repository
+(https://github.com/Stintmate-App/stintmate-ipc-python/releases/tag/v0.3.1), with its own
+`SHA256SUMS`. Only Python connectors need it; `skeleton/fetch-ipc.ps1` downloads and verifies it
+into `skeleton/vendor/`, the environment variable `STINTMATE_IPC_RELEASE` replaces the source (a
+base URL or a local folder), and `STINTMATE_IPC_READ_TOKEN` (a GitHub token that can read the
+release) is needed only while that repository is private.
 
 ## Testing a connector, in any language
 

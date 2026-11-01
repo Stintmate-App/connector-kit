@@ -25,9 +25,24 @@ Licensed under the Apache License 2.0 (see `LICENSE` and `NOTICE`).
 | `docs/events.md` | The event feed |
 | `contract.json` | The connector-facing names, codes, vocabularies and limits, machine readable |
 | `native/` | For a connector in any other language: where the C header and the native DLL come from (the stintmate-ipc release) |
-| `skeleton/` | The smallest working connector (a fake simulator that plays one synthetic session through the real contract): copy it, rename it, replace the fake recorder with the reading of your game. Python, an example to read and copy; its README is the step by step. `fetch-ipc.ps1` downloads the `stintmate-ipc` wheel (the Python binding, with the native DLL) into `vendor/`; `install.ps1` registers it, `tests/test_conformance.py` checks it |
+| `skeleton/` | The smallest working connector (a fake simulator that plays one synthetic session through the real contract): copy it, rename it, replace the fake recorder with the reading of your game. Python, an example to read and copy; its README is the step by step. `fetch-ipc.ps1` downloads the `stintmate-ipc` wheel (the Python binding, with the native DLL; an asset of the stintmate-ipc-python release) into `vendor/`; `install.ps1` registers it, `tests/test_conformance.py` checks it |
 
-The kit carries no binary and no C header: they are assets of the stintmate-ipc release (`stintmate_ipc.dll`, `stintmate_ipc.h`, `stintmate-ipc-check.exe`).
+The kit carries no binary and no C header: they are assets of the stintmate-ipc release (`stintmate_ipc.dll`, `stintmate_ipc.h`, `stintmate-ipc-check.exe`). The Python wheel is an asset of the stintmate-ipc-python release.
+
+## Releases
+
+Each release is a GitHub release of this repository, tagged `vMAJOR.MINOR.PATCH`, with one asset,
+`connector-kit-<version>.zip`, and a `SHA256SUMS` file (`<sha256>  <name>`, one line per asset;
+verify with `Get-FileHash -Algorithm SHA256 <file>`). The zip holds `README.md`, `LICENSE`,
+`NOTICE`, `docs/`, `native/` and `skeleton/` under a `connector-kit-<version>/` folder. The notes
+of a release are its section of `CHANGELOG.md`; the version is the first `## <version>` heading
+of that file and the tag must equal it.
+
+The `ci` and `release` workflows (Actions) run by hand only. `scripts/check-docs.sh` is the
+documentation check both run, together with the skeleton's tests and the JSON validity of
+`contract.json` and `docs/write-api.schema.json`; run it locally from the repository root.
+While the stintmate-ipc-python repository is private, the workflows read its release with the
+repository secret `STINTMATE_IPC_READ_TOKEN`.
 
 ## Installed with Stintmate
 

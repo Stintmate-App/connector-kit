@@ -1,0 +1,141 @@
+name: release
+
+# Publishes the asset of a release tag (Actions > release > Run workflow). By hand only, like ci.
+# The workflow runs from `main`; the tag's tree is checked out into `tree/`, so tags made before
+# this workflow existed can be released. The scripts in `scripts/` come from `main` and read the
+# tag only through git.
+#   tag      the release tag, vMAJOR.MINOR.PATCH (a tag with `+` is refused: it changes no code and
+#            has no assets). It must be on main and equal v + the top `## <version>` heading of
+#            CHANGELOG.md (the repository has no version file), which must have its section.
+#   dry_run  (default true) builds, checks and uploads to a draft named `dry-run-<tag>` under the
+#            tag `dry-run-<version>`, verifies the download, prints the hashes (against the published
+#            release of the tag, if there is one) and deletes the draft. The published release is
+#            never touched. A real run refuses a tag that already has a published release.
+# Same checks as ci.yml, run on the tag's tree. The asset is connector-kit-<version>.zip (a
+# `git archive` of the tag restricted to the payload paths) and SHA256SUMS.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (vMAJOR.MINOR.PATCH)
+        type: string
+        required: true
+      dry_run:
+        description: Dry run (draft under a dry-run tag, deleted at the end)
+        type: boolean
+        default: true
+      runner:
+        description: Where to run
+        type: choice
+        options: [stintmate-win, windows-latest]
+        default: stintmate-win
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  TAG: ${{ inputs.tag }}
+  DRY_RUN: ${{ inputs.dry_run }}
+
+jobs:
+  # One job: every job pays the runner's start, and the runner takes one job at a time.
+  release:
+    runs-on: ${{ inputs.runner == 'windows-latest' && 'windows-latest' || fromJSON('["self-hosted", "stintmate-win"]') }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check the tag
+        id: check
+        run: |
+          git fetch --tags --force origin
+          scripts/release-check.sh "$TAG" "$DRY_RUN" | tee -a "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          path: tree
+      - uses: astral-sh/setup-uv@v5
+      - name: Fetch the transport wheel
+        shell: pwsh
+        working-directory: tree
+        env:
+          STINTMATE_IPC_READ_TOKEN: ${{ secrets.STINTMATE_IPC_READ_TOKEN }}
+        run: skeleton/fetch-ipc.ps1
+      - name: Skeleton tests
+        working-directory: tree/skeleton
+        run: uv run pytest -q
+      - name: Kit tests
+        working-directory: tree
+        run: uv run --no-project --with pytest pytest -q tests
+      - name: JSON files are valid
+        working-directory: tree
+        run: |
+          uv run --no-project python -m json.tool contract.json > /dev/null
+          uv run --no-project python -m json.tool docs/write-api.schema.json > /dev/null
+      - name: Documentation check
+        working-directory: tree
+        run: scripts/check-docs.sh
+      - name: Assets, checksums and notes
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          SHA: ${{ steps.check.outputs.sha }}
+        run: |
+          mkdir assets
+          git archive --format=zip --prefix="connector-kit-$VERSION/" \
+            -o "assets/connector-kit-$VERSION.zip" "$SHA" -- README.md LICENSE NOTICE docs native skeleton
+          scripts/release-sums.sh assets "connector-kit-$VERSION.zip"
+          cat assets/SHA256SUMS
+          git show "$SHA:CHANGELOG.md" > changelog.md
+          scripts/release-notes.sh changelog.md "$VERSION" > notes.md
+      - name: Draft release
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          SHA: ${{ steps.check.outputs.sha }}
+        run: |
+          if [ "$DRY_RUN" = true ]; then
+            # Only ever the dry-run draft is replaced, never a release of the real tag.
+            gh release delete "dry-run-$VERSION" --yes 2>/dev/null || true
+            gh release create "dry-run-$VERSION" --draft --target "$SHA" \
+              --title "dry-run-$TAG" --notes-file notes.md assets/*
+          else
+            gh release create "$TAG" --draft --verify-tag \
+              --title "$VERSION" --notes-file notes.md assets/*
+          fi
+      - name: Verify the uploaded assets
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          if [ "$DRY_RUN" = true ]; then rel="dry-run-$VERSION"; else rel="$TAG"; fi
+          mkdir verify
+          gh release download "$rel" --dir verify
+          for f in assets/*; do
+            cmp "$f" "verify/$(basename "$f")" || { echo "::error::$(basename "$f") differs after the upload"; exit 1; }
+          done
+          (cd verify && sha256sum --check SHA256SUMS)
+      - name: Publish
+        if: ${{ !inputs.dry_run }}
+        run: gh release edit "$TAG" --draft=false
+      - name: Dry run report
+        if: ${{ inputs.dry_run }}
+        run: |
+          pub=""
+          if [ "${{ steps.check.outputs.published }}" = true ]; then pub="$TAG"; fi
+          scripts/release-report.sh verify "$pub"
+      - name: Delete the dry-run draft
+        if: ${{ always() && inputs.dry_run && steps.check.outcome == 'success' }}
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          if [ "$(gh release view "dry-run-$VERSION" --json isDraft --jq .isDraft 2>/dev/null)" = true ]; then
+            gh release delete "dry-run-$VERSION" --yes
+          fi
