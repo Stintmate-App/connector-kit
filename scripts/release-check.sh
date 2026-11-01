@@ -26,7 +26,7 @@ tmp="${TMPDIR:-/tmp}/release-check-changelog.$$"
 trap 'rm -f "$tmp"' EXIT
 git show "$sha:CHANGELOG.md" > "$tmp"
 top=$(awk '/^## / { sub(/^## /, ""); sub(/ .*$/, ""); print; exit }' "$tmp")
-[ "$top" = "$version" ] || fail "tag '$tag' differs from the top version of CHANGELOG.md (${top:-none})"
+[ "$top" = "$version" ] || fail "tag '$tag' differs from the top version of CHANGELOG.md (${top:-none}); put a '## $version' section on top"
 "$here/release-notes.sh" "$tmp" "$version" > /dev/null \
   || fail "CHANGELOG.md has no '## $version' section at '$tag'"
 

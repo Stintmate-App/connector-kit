@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.5 (2026-11-01)
+
+- The zip carries `contract.json`, and a test ties the zip to the README's list.
+- The skeleton's action test covers every type of the subset: `number`, `integer` and `array` too.
+- `release-check.sh` says what to do when the top section of the changelog is not the tag.
+- The skeleton and the native notes use `stintmate-ipc` 0.3.3.
+
 ## 0.1.4+docs.2 (2026-11-01)
 
 - The repository is prepared for being public: the workflows run on GitHub-hosted Windows runners only (the `runner` input is gone), and `STINTMATE_IPC_READ_TOKEN` is gone from the workflows, from `skeleton/fetch-ipc.ps1` and from the docs, so the wheel is downloaded anonymously over HTTPS (`STINTMATE_IPC_RELEASE` stays). `SECURITY.md` says how to report a vulnerability, and the README has a "Contributing" section. The contract and the skeleton's behaviour are unchanged.

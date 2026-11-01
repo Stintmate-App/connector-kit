@@ -602,10 +602,9 @@ and `log` are yours.
 #### Testing
 
 1. Check the declaration before connecting: the [skeleton](../skeleton/) carries a conformance
-   test that checks the keywords, descriptions and string bounds of the skeleton's own declared
-   actions (it handles `object`, `string` and `boolean` schemas only, and does not name the
-   refused field); it is a starting point to copy, extend it for numbers, arrays, units, bounds
-   and the size limits of this section.
+   test that checks the keywords, descriptions and bounds of the declared actions, for every type
+   of this section. It does not name the refused field or check the size limits: copy it and
+   extend it for those.
 2. Connect your connector to a running Pitwall, then ask the agent: in a session with the
    Pitwall MCP server, `list_connector_actions("ping")` shows what you declared and
    `send_connector_action("test.ping", {"say": false})` sends it. `pitwall.actions.send` is

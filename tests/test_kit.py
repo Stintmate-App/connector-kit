@@ -79,6 +79,15 @@ def test_native_readme_names_the_release_and_the_override():
     assert "STINTMATE_IPC_RELEASE" in readme and "_bin/" in readme and "ABI 1.0" in readme
 
 
+def test_the_zip_holds_what_the_readme_lists():
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    paths = re.search(r'"\$SHA" -- (.+)', workflow).group(1).split()
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for path in paths:
+        assert (ROOT / path).exists(), path
+        assert path.strip("/") in readme, path
+
+
 def test_the_licences_are_apache():
     for p in (ROOT / "LICENSE", ROOT / "skeleton" / "LICENSE"):
         assert "Apache License" in p.read_text(encoding="utf-8")[:200], p
