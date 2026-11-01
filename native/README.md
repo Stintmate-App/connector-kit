@@ -23,8 +23,7 @@ stintmate-ipc-python repository
 (https://github.com/Stintmate-App/stintmate-ipc-python/releases/tag/v0.3.2), with its own
 `SHA256SUMS`. Only Python connectors need it; `skeleton/fetch-ipc.ps1` downloads and verifies it
 into `skeleton/vendor/`, the environment variable `STINTMATE_IPC_RELEASE` replaces the source (a
-base URL or a local folder), and `STINTMATE_IPC_READ_TOKEN` (a GitHub token that can read the
-release) is needed only while that repository is private.
+base URL or a local folder).
 
 ## Testing a connector, in any language
 

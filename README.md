@@ -44,8 +44,6 @@ tagging the next release, put its own `## <version>` section on top.
 The `ci` and `release` workflows (Actions) run by hand only. `scripts/check-docs.sh` is the
 documentation check both run, together with the skeleton's tests and the JSON validity of
 `contract.json` and `docs/write-api.schema.json`; run it locally from the repository root.
-While the stintmate-ipc-python repository is private, the workflows read its release with the
-repository secret `STINTMATE_IPC_READ_TOKEN`.
 
 ## Where Stintmate comes from
 
@@ -59,3 +57,9 @@ and steps 4 and 6 of `docs/connectors.md` need an installed Stintmate with a wor
 
 Stintmate installs a copy of this kit in the user's work folder, under `connector-kit/`. Read the
 files there, never edit them; work in a copy, for example `dev/connector-<sim>/`.
+
+## Contributing
+
+Issues are welcome. Pull requests are welcome too, but there is no promise that they are
+reviewed or merged. For a larger change, open an issue first. Report a security problem
+privately, as described in [`SECURITY.md`](SECURITY.md).

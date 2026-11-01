@@ -11,10 +11,6 @@
 
   STINTMATE_IPC_RELEASE, when set, replaces the source: an http(s) URL used as the base of the
   two files, or the path of a local folder that holds them.
-
-  STINTMATE_IPC_READ_TOKEN, when set, is a GitHub token that can read the release (needed only
-  while the repository is private). The assets are then downloaded through the GitHub API; the
-  token is sent to api.github.com only and never printed.
 #>
 $ErrorActionPreference = 'Stop'
 
@@ -25,8 +21,6 @@ $vendor = Join-Path $PSScriptRoot 'vendor'
 $repo = 'Stintmate-App/stintmate-ipc-python'
 
 $base = $env:STINTMATE_IPC_RELEASE
-$token = $env:STINTMATE_IPC_READ_TOKEN
-$useApi = ([string]::IsNullOrWhiteSpace($base)) -and (-not [string]::IsNullOrWhiteSpace($token))
 if ([string]::IsNullOrWhiteSpace($base)) {
     $base = "https://github.com/$repo/releases/download/v$IpcVersion/"
 }
@@ -61,21 +55,9 @@ if (Test-Verified $vendor) {
 New-Item -ItemType Directory -Force -Path $vendor | Out-Null
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $assets = $null
-    if ($useApi) {
-        $headers = @{ Authorization = "Bearer $token"; Accept = 'application/vnd.github+json'; 'X-GitHub-Api-Version' = '2022-11-28' }
-        $release = Invoke-RestMethod -UseBasicParsing -Headers $headers `
-            -Uri "https://api.github.com/repos/$repo/releases/tags/v$IpcVersion"
-        $assets = @{}
-        foreach ($a in $release.assets) { $assets[$a.name] = $a.url }
-    }
     foreach ($name in @($wheel, $sums)) {
         $dest = Join-Path $vendor $name
-        if ($assets) {
-            if (-not $assets.ContainsKey($name)) { throw "release v$IpcVersion has no asset $name" }
-            $h = @{ Authorization = "Bearer $token"; Accept = 'application/octet-stream' }
-            Invoke-WebRequest -UseBasicParsing -Headers $h -Uri $assets[$name] -OutFile $dest
-        } elseif ($isUrl) {
+        if ($isUrl) {
             Invoke-WebRequest -UseBasicParsing -Uri ($base.TrimEnd('/') + '/' + $name) -OutFile $dest
         } else {
             $src = Join-Path $base $name

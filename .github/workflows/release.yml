@@ -24,11 +24,6 @@ on:
         description: Dry run (draft under a dry-run tag, deleted at the end)
         type: boolean
         default: true
-      runner:
-        description: Where to run
-        type: choice
-        options: [stintmate-win, windows-latest]
-        default: stintmate-win
 
 concurrency:
   group: release
@@ -47,9 +42,9 @@ env:
   DRY_RUN: ${{ inputs.dry_run }}
 
 jobs:
-  # One job: every job pays the runner's start, and the runner takes one job at a time.
+  # One job: every job pays the runner's start.
   release:
-    runs-on: ${{ inputs.runner == 'windows-latest' && 'windows-latest' || fromJSON('["self-hosted", "stintmate-win"]') }}
+    runs-on: windows-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -68,8 +63,6 @@ jobs:
       - name: Fetch the transport wheel
         shell: pwsh
         working-directory: tree
-        env:
-          STINTMATE_IPC_READ_TOKEN: ${{ secrets.STINTMATE_IPC_READ_TOKEN }}
         run: skeleton/fetch-ipc.ps1
       - name: Skeleton tests
         working-directory: tree/skeleton

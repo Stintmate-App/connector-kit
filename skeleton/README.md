@@ -31,7 +31,7 @@ no setting.
 
 | File | What it shows | Guide section |
 |---|---|---|
-| `fetch-ipc.ps1` | Downloads the `stintmate-ipc` wheel from the release of the `stintmate-ipc-python` repository into `vendor/` and checks its SHA-256 (`STINTMATE_IPC_RELEASE`: a base URL or a local folder instead; `STINTMATE_IPC_READ_TOKEN`: a GitHub token that can read the release, only while that repository is private); `install.ps1` runs it first | 1 |
+| `fetch-ipc.ps1` | Downloads the `stintmate-ipc` wheel from the release of the `stintmate-ipc-python` repository into `vendor/` and checks its SHA-256 (`STINTMATE_IPC_RELEASE`: a base URL or a local folder instead); `install.ps1` runs it first | 1 |
 | `install.ps1` | Creates the connector's own Python environment in its install folder and writes the descriptor `%LOCALAPPDATA%\Stintmate\connectors\skeleton.json` with the **absolute** launcher (`-Uninstall` removes both) | 1, 2 |
 | `src/skeleton_connector/main.py` | The launcher: accepts `--workspace --managed --parent-pid --allow-synced`, holds the single-instance mutex, logs to `control.log` | 3, 4 |
 | `src/skeleton_connector/control.py` | The endpoint `connector-skeleton`: `control.state` (one delegable service `recorder`), `control.quit`, `control.managed`, `control.service.start/stop`, `control.catalog.get` | 5 |
