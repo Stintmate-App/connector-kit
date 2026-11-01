@@ -7,7 +7,7 @@ and Pitwall is Stintmate IPC v2, and its C ABI is the one interface for every la
 https://github.com/Stintmate-App/stintmate-ipc (its `SPEC.md`).
 
 This kit carries no header and no binary. Download them directly from the stintmate-ipc release
-`v0.3.1` (https://github.com/Stintmate-App/stintmate-ipc/releases/tag/v0.3.1); no Python and no
+`v0.3.2` (https://github.com/Stintmate-App/stintmate-ipc/releases/tag/v0.3.2); no Python and no
 `uv` are involved:
 
 - `stintmate_ipc.dll`: the library the header describes; ship it beside your connector's
@@ -18,9 +18,9 @@ This kit carries no header and no binary. Download them directly from the stintm
   Verify what you download, for example with `Get-FileHash -Algorithm SHA256 <file>`.
 
 `stintmate_ipc-0.3.2-py3-none-win_amd64.whl`, the Python binding (a zip file that carries the same
-DLL and tool under `stintmate_ipc/_bin/`), is an asset of the release `v0.3.1` of the
+DLL and tool under `stintmate_ipc/_bin/`), is an asset of the release `v0.3.2` of the
 stintmate-ipc-python repository
-(https://github.com/Stintmate-App/stintmate-ipc-python/releases/tag/v0.3.1), with its own
+(https://github.com/Stintmate-App/stintmate-ipc-python/releases/tag/v0.3.2), with its own
 `SHA256SUMS`. Only Python connectors need it; `skeleton/fetch-ipc.ps1` downloads and verifies it
 into `skeleton/vendor/`, the environment variable `STINTMATE_IPC_RELEASE` replaces the source (a
 base URL or a local folder), and `STINTMATE_IPC_READ_TOKEN` (a GitHub token that can read the
