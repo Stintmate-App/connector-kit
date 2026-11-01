@@ -34,11 +34,11 @@ The kit carries no binary and no C header: they are assets of the stintmate-ipc 
 Each release is a GitHub release of this repository, tagged `vMAJOR.MINOR.PATCH`, with one asset,
 `connector-kit-<version>.zip`, and a `SHA256SUMS` file (`<sha256>  <name>`, one line per asset;
 verify with `Get-FileHash -Algorithm SHA256 <file>`). The zip holds `README.md`, `LICENSE`,
-`NOTICE`, `docs/`, `native/` and `skeleton/` under a `connector-kit-<version>/` folder. The notes
+`NOTICE`, `contract.json`, `docs/`, `native/` and `skeleton/` under a `connector-kit-<version>/` folder. The notes
 of a release are its section of `CHANGELOG.md`; the tag must equal the version of the first
 `## <version>` heading of that file (`scripts/release-check.sh` compares the first word of that
 heading). A section named `X.Y.Z+docs.N` records a documentation-only correction of release
-`X.Y.Z`: it has no tag and no assets, and `release-check.sh` refuses any tag containing `+`. Before
+`X.Y.Z`: it has no release and no assets, and `release-check.sh` refuses any tag containing `+`. Before
 tagging the next release, put its own `## <version>` section on top.
 
 The `ci` and `release` workflows (Actions) run by hand only. `scripts/check-docs.sh` is the

@@ -392,14 +392,19 @@ def test_it_imports_no_stintmate_app():
 
 # ------------------------------------------------------------------ the actions (section 5.2)
 
-SCHEMA_KEYS = {"object": {"type", "description", "properties", "required",
-                          "additionalProperties"},
-               "string": {"type", "description", "maxLength", "minLength", "enum"},
-               "boolean": {"type", "description"}}
+COMMON_KEYS = {"type", "description", "default"}
+SCHEMA_KEYS = {"object": COMMON_KEYS | {"properties", "required", "additionalProperties"},
+               "string": COMMON_KEYS | {"maxLength", "minLength", "enum"},
+               "number": COMMON_KEYS | {"unit", "minimum", "maximum", "exclusiveMinimum",
+                                        "exclusiveMaximum"},
+               "integer": COMMON_KEYS | {"unit", "minimum", "maximum", "enum"},
+               "boolean": COMMON_KEYS,
+               "array": COMMON_KEYS | {"items", "maxItems", "minItems"}}
 
 
 def _check_schema(node: dict, root: bool = False) -> None:
     """The subset of JSON Schema the declaration may use (the rules, section 5.2)."""
+    assert isinstance(node.get("type"), str) and node["type"] in SCHEMA_KEYS, node
     assert set(node) <= SCHEMA_KEYS[node["type"]], node
     if not root:
         assert 1 <= len(node["description"]) <= 300
@@ -410,6 +415,23 @@ def _check_schema(node: dict, root: bool = False) -> None:
             _check_schema(child)
     if node["type"] == "string":
         assert "enum" in node or 1 <= node["maxLength"] <= 65536
+    if node["type"] == "number":
+        assert 1 <= len(node["unit"]) <= 16 and node["minimum"] <= node["maximum"]
+    if node["type"] == "integer":
+        assert isinstance(node["minimum"], int) and isinstance(node["maximum"], int)
+        assert node["minimum"] <= node["maximum"]
+    if node["type"] == "array":
+        assert 1 <= node["maxItems"] <= 1000
+        _check_schema(node["items"])
+
+
+def test_the_schema_check_accepts_every_type_of_the_subset():
+    _check_schema({"type": "object", "properties": {
+        "gap": {"type": "number", "description": "Gap.", "unit": "mm", "minimum": 0, "maximum": 5},
+        "clicks": {"type": "integer", "description": "Clicks.", "minimum": 0, "maximum": 9},
+        "laps": {"type": "array", "description": "Laps.", "maxItems": 4,
+                 "items": {"type": "integer", "description": "A lap.", "minimum": 1,
+                           "maximum": 99}}}}, root=True)
 
 
 def test_the_declared_actions_follow_the_rules():
