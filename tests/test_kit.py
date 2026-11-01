@@ -33,7 +33,7 @@ def text_files():
 
 
 def test_text_is_public_safe():
-    banned = re.compile(r"leona|Leonardo|api_token|C:[\\]Users|Documents[\\]Stintmate", re.I)
+    banned = re.compile(r"api_token|C:[\\]Users|Documents[\\]Stintmate", re.I)
     # the conformance test names the private data it must not find
     for path in text_files():
         if path == Path(__file__).resolve():

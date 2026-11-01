@@ -6,7 +6,7 @@ transport: handshake, methods, state channels, events, streams, flags and the pr
 codes. This page is the application layer a connector meets on top of it: the names, params,
 results and application error codes of the connector's two connections, to Pitwall and to the
 managing app. How to use them step by step is in the [connector protocol](connector-protocol.md);
-the machine-readable names are in [`contract.json`](../contract.json).
+the machine-readable names are in [`contract.json`](../contract.json) (in the repository; the release zip does not carry it).
 
 A connector has two sides:
 

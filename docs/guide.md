@@ -16,6 +16,19 @@ this page differ, the link wins.
 | A minimal connector to copy | [`skeleton/`](../skeleton/README.md) |
 | The transport | [stintmate-ipc](https://github.com/Stintmate-App/stintmate-ipc) (its `SPEC.md`) and the Python package `stintmate-ipc` (the DLL, the C header and the check tool are assets of each stintmate-ipc release; the wheel is an asset of each [stintmate-ipc-python](https://github.com/Stintmate-App/stintmate-ipc-python) release, which the skeleton fetches with `fetch-ipc.ps1`, for the Python skeleton; a connector in any language loads `stintmate_ipc.dll` through the C ABI described in [`native/`](../native/README.md)) |
 
+## Words used in these documents
+
+- **Stintmate** is a Windows application the user downloads from https://stintmate.app. It
+  installs the **hub** (the app that lists, starts and shows connectors) and **Pitwall** (the
+  database and `pitwall-core`, which connectors write to), and creates the user's **workspace**
+  (the user's folder, with `ipc\key` inside it). A connector cannot be tried end to end
+  without it; see [the README](../README.md#where-stintmate-comes-from).
+- **The engineer** is the user's AI agent. It reads and works with Pitwall through the tools of
+  Pitwall's MCP server; a connector never talks to it directly. The tools a connector author
+  meets are `connector_status` (what is connected), `get_connector_guidance` (the guidance the
+  connector declared), `list_connector_actions` and `send_connector_action` (the actions it
+  declared, and sending one) and `get_live_state` (the live frame).
+
 ## 1. What a connector is
 
 One or more processes that know a simulator and nothing else Stintmate-specific:
@@ -25,8 +38,10 @@ One or more processes that know a simulator and nothing else Stintmate-specific:
 - usually a **control app** (tray icon, window) that serves the endpoint `connector-<id>` for
   the hub and supervises the services. A connector without a window still serves the endpoint.
 
-It lives in `<workspace>\connectors\<id>\` and is responsible for **everything it needs to run**:
-its executable, or for a script connector its own Python environment inside that folder.
+The program lives in its own install folder (the folder of the `launcher` your descriptor names,
+for example under `%LOCALAPPDATA%\Programs\`); `<workspace>\connectors\<id>\` is only its data
+and logs folder. A connector is responsible for **everything it needs to run**: its executable,
+or for a script connector its own Python environment inside its install folder.
 Stintmate does not install a connector, does not repair it, and does not provide or choose a
 Python (or any runtime) for it: the hub runs the `launcher` named in your descriptor and
 expects to reach the connector's channels; if it cannot, the connector does not work. A
@@ -124,7 +139,7 @@ your own language (English usually) and never translate.
 
 - *Announcements* (optional): declare your announcement catalog with
   `pitwall.catalog.declare` and send codes with `pitwall.announce` (optional phrase variants)
-  ([contract.md 10.3](contract.md)).
+  ([contract.md sections 4.4 and 6](contract.md)).
 - *Guidance* (optional): declare rules for the race engineer about your simulator with `pitwall.guidance.declare` (English; topics, limits and what makes good guidance: [connector-protocol.md section 5.1](connector-protocol.md#51-guidance-for-the-engineer)). It is not translated.
 - *Actions* (optional): declare the commands only your simulator can carry out, sent by the engineer's agent, with `pitwall.actions.declare`, and serve them with `connector.action` (data and answer formats in a JSON Schema subset, `requires_confirmation` for what the player must approve; writing guide and a full example: [connector-protocol.md section 5.2](connector-protocol.md#52-actions-the-engineer-sends-you)).
 - *Window texts* (optional): serve `control.catalog.get` with your built-in catalog, named

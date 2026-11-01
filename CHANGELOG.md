@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.4+docs.1 (2026-11-01)
+
+- Documentation corrected against the code; the code and the skeleton are unchanged (the kit's
+  tests lost a personal word from a pattern).
+  `contract.json` now lists, as the documents already did, the `control.buttons.*` methods and the error codes `managed`,
+  `no_wheel`, `not_found`, `overloaded`, `shutting_down` and `unavailable`. The documents say where
+  the program, the data and the logs of a connector live, what the release zip holds, what the
+  engineer is, where Stintmate comes from, and what the skeleton's conformance test checks. No
+  release is cut for this section.
+
 ## 0.1.4 (2026-11-01)
 
 - The skeleton and the native notes, their release links included, use `stintmate-ipc` 0.3.2. The

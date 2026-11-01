@@ -43,7 +43,7 @@ Times are ISO 8601 text **with a UTC offset** (`2026-10-18T18:00:00+02:00`).
 ## Vocabularies
 
 Connectors map their simulator's own values onto these. The exact lists are in
-[`contract.json`](../contract.json).
+[`contract.json`](../contract.json) (in the repository; the release zip does not carry it).
 
 - **Session type:** `practice`, `qualifying`, `race`, `warmup`, `other`.
 - **Lap type:** `formation` (before a race start, never timed), `out` (leaves the pits or the
