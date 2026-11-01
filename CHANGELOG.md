@@ -2,7 +2,8 @@
 
 ## 0.1.4 (2026-11-01)
 
-- The skeleton and the native notes use `stintmate-ipc` 0.3.2. The contract is unchanged.
+- The skeleton and the native notes, their release links included, use `stintmate-ipc` 0.3.2. The
+  contract is unchanged.
 
 ## 0.1.3 (2026-11-01)
 
