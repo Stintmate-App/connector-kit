@@ -131,6 +131,18 @@ the hub: the connector is listed, and its recorder plays the session as soon as 
 Without the hub, start `skeleton-connector.exe --workspace <workspace>` yourself (needs
 `<workspace>\ipc\key`), and ask it to stop with `control.quit`.
 
+## Check it with `connector-check`
+
+After `fetch-ipc.ps1`, from the kit's root (the skeleton is registered by `install.ps1`):
+
+```
+uv run --project checker connector-check --descriptor %LOCALAPPDATA%\Stintmate\connectors\skeleton.json --fake-game-file "{workspace}\connectors\skeleton\fake_game"
+```
+
+The checker plays the fake game by creating that file in its own temporary workspace, so the
+skeleton plays one session and the checker reports every check of the minimum level
+([checker/README.md](../checker/README.md)). Run it again against your own descriptor.
+
 ## Using this as your own connector
 
 Rename the package, `CONNECTOR_ID` (equal to the folder name; `^[a-z0-9][a-z0-9_-]{0,31}$`), the mutex, the

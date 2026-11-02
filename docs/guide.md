@@ -202,7 +202,7 @@ data.
 - [ ] Reads the key, never writes it; retries while workspace, key or Pitwall are missing.
 - [ ] Pitwall side per connector-protocol.md (hello, `connector.status`, writes).
 - [ ] Optional: catalogs declared in your own language; the hub translates them.
-- [ ] `connector-check` ([levels.md](levels.md) section 9) reports no failure at the level you declare.
+- [ ] `connector-check` ([levels.md](levels.md) section 9, [checker/README.md](../checker/README.md)) reports no failure at the level you declare.
 
 ## 11. Licences
 

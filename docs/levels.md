@@ -156,6 +156,28 @@ contract; it is not the version of Pitwall's read contract.
 
 ## 9. How to check
 
-`connector-check` runs a connector against a fake Pitwall and reports against these levels.
-What it cannot see stays manual: the units and signs of your channels against the game (M12),
-the CPU cost in a running game (M15) and the texts of your language (M18).
+`connector-check` (the `checker/` folder of the kit, [README](../checker/README.md)) starts your
+connector from its descriptor, serves a fake Pitwall on pipes of its own and reports one line per
+check: `PASS`, `FAIL`, `SKIP` or `MANUAL`. It uses a temporary workspace with its own key and a
+random `STINTMATE_DEV_INSTANCE` tag (M19), so it runs beside a real Stintmate without touching it.
+
+```
+uv run --project <kit>\checker connector-check --descriptor <file> [--level minimum|features]
+```
+
+- **`--level minimum`** (default) runs every automatic check of M1 to M19 (section 2).
+- **`--level features`** also checks each name in the descriptor's `features` that it can: that the
+  names are known (`F.names`), and that a declared `announcements`, `guidance` or `actions`
+  reached the fake Pitwall (`test.ping` is called). The other features of section 6 are not checked.
+- **Sanity of the channels (M12)** is automatic for ranges, units and signs: `t`, `dist`, pedals
+  in 0..1, `speed` in km/h against the lap time and length, `g_lat` in g, the length of the `x`, `z`
+  path, and the sign of `g_lat` against `steer` when `steer` is sent (a correlation of +0.3 or more
+  passes, -0.3 or less fails as flipped, in between is reported for you to check). Without `steer`
+  the sign stays manual.
+- **Stays manual** (printed as `MANUAL`, never a failure): your own runtime in your folder (M2),
+  the findings document and the signs in the car (M12), that nothing reads the game's data with the
+  game closed (M15), that your logs are capped (M16), the hold and release of your setup (M17), and
+  the texts of your language (M18) beyond the pack test.
+
+Exit codes: 0 every automatic check passed, 1 one failed, 2 it could not run, 3 no failure but some
+automatic checks were skipped.

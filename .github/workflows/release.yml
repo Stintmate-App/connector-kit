@@ -67,6 +67,9 @@ jobs:
       - name: Skeleton tests
         working-directory: tree/skeleton
         run: uv run pytest -q
+      - name: Checker tests
+        working-directory: tree/checker
+        run: uv run pytest -q
       - name: Kit tests
         working-directory: tree
         run: uv run --no-project --with pytest pytest -q tests
@@ -85,7 +88,7 @@ jobs:
         run: |
           mkdir assets
           git archive --format=zip --prefix="connector-kit-$VERSION/" \
-            -o "assets/connector-kit-$VERSION.zip" "$SHA" -- README.md LICENSE NOTICE contract.json docs native skeleton
+            -o "assets/connector-kit-$VERSION.zip" "$SHA" -- README.md LICENSE NOTICE contract.json docs native skeleton checker
           scripts/release-sums.sh assets "connector-kit-$VERSION.zip"
           cat assets/SHA256SUMS
           git show "$SHA:CHANGELOG.md" > changelog.md
