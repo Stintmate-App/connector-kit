@@ -73,7 +73,7 @@ guess: the lap analysis, comparison and corner detection raise "not found" for a
 | Stored lap | `t`, `dist`, `speed` when the lap has channels (a write without them is refused) | |
 | Lap analysis, comparison | `t`, `dist`, `speed`, `throttle`, `brake`, `g_lat`; the layout's `length_m` | `abs`, `tc`, the four `<wheel>_surface` (all four or none) |
 | Corners | The same six channels and `length_m`; the detection reads `g_lat` and `speed` | |
-| Outline, track map | `t`, `dist`, `x`, `z`; `g_lat` tells whether the plan view is mirrored | |
+| Outline, track map | `t`, `dist`, `x`, `z`; `g_lat` tells whether the top-down view is mirrored | |
 | Incidents | `t`, `dist`, `speed` | `invalid`, `pit_mode`, the four `<wheel>_surface` |
 | Tyre report | `speed`, `g_lat`, the tyre channels | |
 | Brake analysis | `brake`, `dist`; `<wheel>_rps` for lock-ups | |
