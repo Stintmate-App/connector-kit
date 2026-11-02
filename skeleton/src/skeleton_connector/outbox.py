@@ -26,7 +26,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from stintmate_ipc import ConnectionLost, NotConnected, RemoteError
+from stintmate_ipc import IpcError, RemoteError
 # Not in the package's __all__, but it is the codec Pitwall speaks (MessagePack).
 from stintmate_ipc._codec import packb, unpackb
 
@@ -73,7 +73,7 @@ class Outbox:
                 log.error("Outbox file %s is unreadable (%s): moved to rejected", path.name, exc)
                 self._move_aside(path)
         self._items.extend(sorted(found))
-        seqs = [int(p.stem) for p in self.rejected_dir.glob("*.msgpack")]
+        seqs = [int(p.stem) for p in self.rejected_dir.glob("*.msgpack") if p.stem.isdigit()]
         self._rejected = len(seqs)
         self._next = max([i[0] for i in self._items] + seqs, default=0) + 1
         if self._items:
@@ -91,7 +91,7 @@ class Outbox:
         with self._cond:
             self._cond.notify_all()
         if self._thread is not None:
-            self._thread.join(35)
+            self._thread.join(10)                        # a daemon: a hung call does not hold the exit
 
     def flush(self, timeout: float) -> bool:
         with self._cond:
@@ -136,7 +136,11 @@ class Outbox:
             if not self.client.connected:
                 self._stop.wait(0.05)
                 continue
-            self._send(item)
+            try:
+                self._send(item)
+            except Exception:  # noqa: BLE001 - the sender must never die: log, wait, go on
+                log.exception("Outbox sender failed; the write stays and is sent again")
+                self._stop.wait(RETRY_DEFAULT_S)
 
     def _send(self, item: Item) -> None:
         _seq, path, method, ik, _at = item
@@ -155,18 +159,27 @@ class Outbox:
                           exc.code, exc.message)
                 self._finish(item, rejected=True)
                 if self.on_rejected is not None:
-                    self.on_rejected(method, params, exc.code)
+                    try:
+                        self.on_rejected(method, params, exc.code)
+                    except Exception:  # noqa: BLE001
+                        log.exception("on_rejected failed")
                 return
             wait = RETRY_DEFAULT_S if exc.retry_ms is None else exc.retry_ms / 1000
             log.info("%s %s: %s, sent again", method, ik, exc.code)
             self._stop.wait(min(RETRY_MAX_S, max(RETRY_MIN_S, wait)))
             return
-        except (NotConnected, ConnectionLost):
-            self._stop.wait(LOST_CONNECTION_S)          # same file, same key, once connected
+        except IpcError as exc:
+            # CallTimeout, ConnectionLost, NotConnected, CallCancelled ...: same file, same
+            # key, sent again once the call can go through.
+            log.info("%s %s: %s, sent again", method, ik, type(exc).__name__)
+            self._stop.wait(LOST_CONNECTION_S)
             return
         self._finish(item)
         if self.on_result is not None:
-            self.on_result(method, params, result)
+            try:
+                self.on_result(method, params, result)
+            except Exception:  # noqa: BLE001
+                log.exception("on_result failed")
 
     def _finish(self, item: Item, rejected: bool = False) -> None:
         with self._cond:
