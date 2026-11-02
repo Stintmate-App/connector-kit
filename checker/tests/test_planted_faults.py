@@ -4,6 +4,7 @@ longer applies fails its own test. The faults run in parallel, one checker proce
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import shutil
@@ -27,6 +28,23 @@ NO_PRIORITY = ("main.py", "    lower_priority()\n    args = parse(argv)", "    a
 QUIT_RULE = ("control.py", "if self.managed and self.parent_pid and not", "if False and not")
 LAP_TIME = ("recorder.py", "            if time_s is not None:\n                params[\"time_s\"] = time_s",
             "            if True:\n                params[\"time_s\"] = time_s or 30.0")
+
+
+def frame_without_player() -> str:
+    """The skeleton's live frame example, with nobody marked as the player."""
+    spec = importlib.util.spec_from_file_location("live_frame_example",
+                                                  SKELETON / "examples" / "live_frame.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    frame = module.frame_now()
+    for car in frame["participants"]:
+        car["is_player"] = False
+    return json.dumps(frame)
+
+
+ACTION = "        self.client.method(\"connector.action\", self._action)   # a pool thread, not inline"
+WITH_FRAME = (ACTION + "\n        self.client.method(\"connector.live_frame\", lambda ctx, p: __import__(\"json\")"
+              ".loads(" + repr(frame_without_player()) + "), inline=True)")
 
 
 def p(file: str, old: str, new: str) -> list[tuple[str, str, str]]:
@@ -133,6 +151,12 @@ FAULTS: dict[str, tuple[list, dict, str, str, list[str]]] = {
                            '("pitwall.catalog.declarex", {"catalog": ANNOUNCEMENTS},'),
                          {"features": ["announcements"]}, "F.announcements", "F.announcements",
                          ["--level", "features"]),
+    "frame_no_player": (p("recorder.py", ACTION, WITH_FRAME), {"features": ["live_frame"]},
+                        "F.live_frame", "F.live_frame", ["--level", "features"]),
+    "no_capture_target": ([], {"features": ["capture_target"]}, "F.capture_target",
+                          "F.capture_target", ["--level", "features"]),
+    "no_brake_cues": ([], {"features": ["brake_cues"]}, "F.brake_cues", "F.brake_cues",
+                      ["--level", "features"]),
 }
 
 

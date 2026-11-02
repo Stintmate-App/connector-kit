@@ -193,6 +193,15 @@ class FakeCore:
             raise RuntimeError("no connector is connected")
         return peer.call(name, params if params is not None else {}, timeout=timeout)
 
+    def offered(self) -> tuple[set[str], set[str]] | None:
+        """The methods and channels the connected connector declares, or None when none is."""
+        with self.lock:
+            peer = self.peers[-1] if self.peers else None
+        if peer is None:
+            return None
+        decl = peer.decl
+        return set(decl.methods), set(decl.channels)
+
     def dump(self, path: str | Path) -> None:
         """Every call, to read back."""
         with self.lock:

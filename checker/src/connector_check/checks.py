@@ -8,6 +8,7 @@ import json
 import os
 import logging
 import sys
+import threading
 import time
 import traceback
 from collections.abc import Callable
@@ -68,6 +69,10 @@ CHECKS: list[Check] = [
     Check("F.actions", "Declared actions, and test.ping answers", "features", features=True),
     Check("F.guidance", "Declared guidance reached Pitwall", "features", features=True),
     Check("F.announcements", "Declared announcement catalog reached Pitwall", "features", features=True),
+    Check("F.live_frame", "Declared live frame is valid, in menus and on track", "features",
+          features=True),
+    Check("F.capture_target", "Declared capture target is offered", "features", features=True),
+    Check("F.brake_cues", "Declared brake cues stream is offered", "features", features=True),
     Check("M5.stranger", "A stranger cannot make a managed app quit", "quit"),
     Check("M5.quit", "The managing process makes it quit within 20 s", "quit"),
 ]
@@ -339,11 +344,69 @@ def restart(ctx: Ctx) -> bool:
 
 # ---- M7.key, M2, M19, M3, M4, M5 -----------------------------------------------------------
 
+class KeyWatch:
+    """Watches the key file from before the connector starts until the check ends. The checker is
+    the only one that may write it: while `want` is None the file must not exist, and once the
+    checker has written it the content must stay what the checker wrote. A connector that creates
+    or replaces the key, at any moment, is caught in `problem`."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.want: str | None = None
+        self.problem: str | None = None
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="key-watch", daemon=True)
+
+    def start(self) -> KeyWatch:
+        self._thread.start()
+        return self
+
+    def close(self) -> None:
+        self._stop.set()
+        self._thread.join(2.0)
+
+    def _run(self) -> None:
+        bad = 0
+        while not self._stop.wait(0.03):
+            want = self.want
+            try:
+                text = self.path.read_text(encoding="ascii").strip()
+            except FileNotFoundError:
+                bad = 0
+                continue
+            except (OSError, ValueError):
+                continue
+            if want is not None and text == want:
+                bad = 0
+                continue
+            bad += 1
+            if bad >= 2 and self.problem is None and self.want == want:
+                self.problem = ("created the key file: a connector only reads it" if want is None
+                                else "replaced the content of the key file: a connector only reads it")
+
+
+def probe_control(ctx: Ctx, proc: Proc) -> None:
+    """Knock on the control endpoint as a managing app does: the connector asks for the key then."""
+    probe = ControlLink(ctx.control_pipe, ctx.key)
+    try:
+        probe.connect(0.5, alive=proc.alive)
+    finally:
+        probe.close()
+
+
 @group("key")
 def key_checks(ctx: Ctx) -> None:
-    rep = ctx.report
     if key_path(ctx).exists():
         key_path(ctx).unlink()
+    watch = KeyWatch(key_path(ctx)).start()
+    try:
+        judge_key(ctx, watch)
+    finally:
+        watch.close()
+
+
+def judge_key(ctx: Ctx, watch: KeyWatch) -> None:
+    rep = ctx.report
     if ctx.core is None:
         start_core(ctx)
     proc = launch(ctx)
@@ -351,26 +414,49 @@ def key_checks(ctx: Ctx) -> None:
         rep.failed("M7.key", ctx.scratch.get("launch_error", "cannot start"))
         return
     end = time.monotonic() + 5.0
-    while time.monotonic() < end and proc.alive() and not key_path(ctx).exists():
-        time.sleep(0.1)
-    if not proc.alive():
+    while time.monotonic() < end and proc.alive() and watch.problem is None:
+        probe_control(ctx, proc)
+        time.sleep(0.2)
+    if watch.problem:
+        rep.failed("M7.key", watch.problem)
+    elif not proc.alive():
         rep.failed("M7.key", f"exited with code {proc.returncode} while the key was missing "
                              f"({proc.log_tail()})")
-    elif key_path(ctx).exists():
-        rep.failed("M7.key", "created the key file: a connector only reads it")
     else:
         ctx.scratch["key_waited"] = True
+    text = ctx.key.hex()
+    watch.want = text
     write_key(ctx)
     ctx.scratch["key_added_at"] = time.monotonic()
-    if rep.status("M7.key") == "PENDING":
-        # Managed, the connector starts its recorder when the hub says so: attach does that.
-        if not boot(ctx):
-            rep.failed("M7.key", "did not start after the key appeared")
-        elif ctx.core.wait(lambda: ctx.core.linked, 15.0):
-            rep.passed("M7.key", "alive without the key, did not create it, linked within 15 s "
-                                 "of the key appearing")
-        else:
-            rep.failed("M7.key", "not linked within 15 s of the key appearing")
+    if rep.status("M7.key") != "PENDING":
+        return
+    # Managed, the connector starts its recorder when the hub says so: attach does that.
+    if not boot(ctx):
+        rep.failed("M7.key", "did not start after the key appeared")
+        return
+    if not ctx.core.wait(lambda: ctx.core.linked, 15.0):
+        rep.failed("M7.key", "not linked within 15 s of the key appearing")
+        return
+    # The recorder runs now. Take the key away and make it reconnect: a connector that creates
+    # a missing key does it when it connects, and must not.
+    key_path(ctx).unlink()
+    watch.want = None
+    ctx.core.stop()
+    time.sleep(1.0)
+    ctx.core.start()
+    ctx.core.wait(lambda: watch.problem is not None, 8.0)
+    if watch.problem:
+        rep.failed("M7.key", "with its recorder running, it " + watch.problem)
+        return
+    watch.want = text
+    write_key(ctx)
+    if not ctx.core.wait(lambda: ctx.core.linked, 15.0):
+        rep.failed("M7.key", "not linked within 15 s of the key coming back")
+    elif watch.problem:
+        rep.failed("M7.key", watch.problem)
+    else:
+        rep.passed("M7.key", "alive without the key, did not create or replace it (also with the "
+                             "recorder running), linked within 15 s of the key appearing")
 
 
 @group("start")
@@ -1007,6 +1093,56 @@ def cpu_checks(ctx: Ctx) -> None:
 
 # ---- declared features (--level features) ---------------------------------------------------
 
+ON_TRACK = ("garage", "on_track", "paused")
+
+
+def ask_frame(ctx: Ctx) -> tuple[Any, str | None]:
+    """The frame the connector answers now, or the error it answers with."""
+    try:
+        return ctx.core.call("connector.live_frame", {}, timeout=5.0), None
+    except RemoteError as exc:
+        return None, exc.code
+    except Exception as exc:  # noqa: BLE001
+        return None, repr(exc)
+
+
+def judge_live_frame(ctx: Ctx) -> None:
+    """A frame valid against the schema with the game closed (or the error `game_not_running`),
+    and one valid frame, in a phase with a player, once a session runs."""
+    rep, schema = ctx.report, ctx.schema("live-frame.schema.json")
+    sess.game_off(ctx)
+    sess.settle(ctx)
+    frame, code = ask_frame(ctx)
+    if code not in (None, "game_not_running"):
+        rep.failed("F.live_frame", f"in the menus, connector.live_frame answered {code}")
+        return
+    errors = desc_mod.schema_errors(frame, schema) if code is None else []
+    if errors:
+        rep.failed("F.live_frame", "in the menus: " + "; ".join(errors[:4]))
+        return
+    sess.game_on(ctx)
+    try:
+        wait = ctx.args.session_timeout if sess.game_path(ctx) is None else 60.0
+        end, last = time.monotonic() + wait, "no answer"
+        while time.monotonic() < end:
+            frame, code = ask_frame(ctx)
+            if code is None and isinstance(frame, dict) and frame.get("phase") in ON_TRACK:
+                errors = desc_mod.schema_errors(frame, schema)
+                if errors:
+                    rep.failed("F.live_frame", "on track: " + "; ".join(errors[:4]))
+                else:
+                    rep.passed("F.live_frame", f"valid in the menus and on track (phase "
+                                               f"{frame['phase']})")
+                return
+            last = code or f"phase {frame.get('phase')!r}" if isinstance(frame, dict) else str(code)
+            time.sleep(0.5)
+        rep.failed("F.live_frame", f"no frame in phase garage, on_track or paused within "
+                                   f"{wait:.0f} s ({last})")
+    finally:
+        sess.game_off(ctx)
+        sess.wait_quiet(ctx)
+
+
 @group("features")
 def feature_checks(ctx: Ctx) -> None:
     rep, desc = ctx.report, ctx.descriptor
@@ -1015,10 +1151,32 @@ def feature_checks(ctx: Ctx) -> None:
         rep.failed("F.names", "not in the features list of contract.json: " + ", ".join(unknown))
     else:
         rep.passed("F.names", f"{len(desc.get('features') or [])} declared names, all known")
-    ids = ["F.announcements", "F.guidance", "F.actions"]
+    ids = ["F.announcements", "F.guidance", "F.actions", "F.live_frame", "F.capture_target",
+           "F.brake_cues"]
     if not need_boot(ctx, ids):
         return
     declared, core = desc.get("features") or [], ctx.core
+    core.wait(lambda: core.offered() is not None, 10.0)
+    methods, channels = core.offered() or (set(), set())
+    for fid, feature, name, offered in (("F.capture_target", "capture_target",
+                                         "connector.capture_target", methods),
+                                        ("F.brake_cues", "brake_cues", "connector.telemetry",
+                                         channels)):
+        if feature not in declared:
+            rep.passed(fid, "not declared")
+        elif name not in offered:
+            rep.failed(fid, f"declared in the descriptor, but the connection does not offer {name}")
+        else:
+            rep.passed(fid, f"{name} offered")
+    if "live_frame" not in declared:
+        rep.passed("F.live_frame", "not declared")
+    elif "connector.live_frame" not in methods:
+        rep.failed("F.live_frame", "declared in the descriptor, but the connection does not offer "
+                                   "connector.live_frame")
+    elif ctx.args.skip_session:
+        rep.skip_group(["F.live_frame"], "--skip-session")
+    else:
+        judge_live_frame(ctx)
     core.wait(lambda: len(core.declared) >= 3, 10.0)
     for fid, feature, method in (("F.announcements", "announcements", "pitwall.catalog.declare"),
                                  ("F.guidance", "guidance", "pitwall.guidance.declare"),

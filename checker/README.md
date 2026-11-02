@@ -71,7 +71,7 @@ then a summary with the `contract_version`, the declared features and what stays
 | Id | What it checks |
 |---|---|
 | `M1.schema`, `M1.identity`, `M17.uninstall` | The descriptor against its schema; `id` equal to the file name, `endpoint`, `mutex` starting `Local\`, an existing absolute launcher; an absolute, existing `uninstall` command |
-| `M7.key` | Started with no key: still running after 5 s, the key not created; linked once the key appears |
+| `M7.key` | Started with no key: still running after 5 s and the key not created, also when the checker knocks on its control endpoint; linked once the key appears; then, with the recorder running, the key is removed and Pitwall restarted: the key must not come back from the connector, and it links again once the checker puts the key back. The key file is watched from the start to the end of the check, so a connector that creates it or replaces its content fails |
 | `M2.options`, `M19.instance` | Starts with the managed options and an unknown one and serves `control.state`; the tagged pipe is served and the tagged mutex is held |
 | `M3.single` | A second start exits within 10 s and the first still answers |
 | `M4.transport`, `M4.state` | `stintmate-ipc-check server --fast` passes; `control.state` against its schema |
@@ -84,9 +84,15 @@ then a summary with the `contract_version`, the declared features and what stays
 | `M14.outbox` | `outbox.pending` rises while Pitwall is away and the writes arrive in order afterwards; writes pending when the connector is killed arrive after its restart. Needs a fake game file |
 | `M15.cpu`, `M15.priority` | At most 0.5 % of a core over `--cpu-seconds` for the whole process tree, game closed and linked; every process of the tree that used CPU is below normal priority |
 | `F.names`, `F.announcements`, `F.guidance`, `F.actions` | At `--level features`: the declared names are known, and a declared catalog, guidance or action list reached the fake Pitwall (`test.ping` is called) |
+| `F.live_frame` | At `--level features`, if `live_frame` is declared: the connector offers `connector.live_frame`; with the game closed it answers a frame valid against [live-frame.schema.json](../docs/live-frame.schema.json) or `game_not_running`; with the game running it answers a valid frame in the phase `garage`, `on_track` or `paused` (it needs the fake game file, or you playing) |
+| `F.capture_target`, `F.brake_cues` | At `--level features`: a declared `capture_target` means the connection offers `connector.capture_target`; a declared `brake_cues` means it offers the stream `connector.telemetry` |
 
 `M2.runtime`, `M12.findings`, `M15.game`, `M16.cap` and `M17.hold` are manual: they print as
-`MANUAL` and never fail. The features `live_frame`, `capture_target` and `brake_cues` are not checked.
+`MANUAL` and never fail.
+
+## What `--level features` covers
+
+It adds one check per feature the descriptor declares. A feature that is not declared passes as "not declared". What it proves is that the connector offers the thing it declared, and for the live frame that the frame has the right shape. It does not prove the content is true: that the speed, the position or the fuel in a frame match the game, that the window `connector.capture_target` names is the game's, or that the telemetry stream carries real samples is for you to check against the game. Every other known feature has no check beyond its name (`F.names`).
 
 ## Tests
 
