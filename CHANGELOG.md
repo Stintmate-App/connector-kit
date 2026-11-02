@@ -16,6 +16,7 @@
 - The live frame needs at least one participant with `is_player: true`; the docs say which channels each analysis needs (`throttle`, `brake` and `g_lat` for lap analysis, comparison and corners).
 - New in the guide: settings of a connector, the hub's launch timings, `--allow-synced`, what an official connector's setup reports, and licences. Protocol: the two odd cases of a closing game or a stopped connector, the conventional actions `test.ping` and `test.announce`, and write messages refusing unknown fields. `catalogs.md` lists suggested announcement codes.
 - Fixed: the README, `contract.md` and `data-model.md` said the release zip does not carry `contract.json`; it does.
+- The skeleton connector follows the minimum: it links to Pitwall when its recorder starts and checks the game every 2 s (`game.py`, with a fake game file), reads nothing with the game closed, writes through an outbox on disk (`outbox.py`), plays laps with the six required channels plus `steer`, `x` and `z` (`session.py`), shows `refused` in `control.state.pitwall`, runs below normal priority, caps its log, and honours `STINTMATE_DEV_INSTANCE`. While managed, only the managing process or its children can make its control app quit.
 
 ## 0.1.5 (2026-11-01)
 

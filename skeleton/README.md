@@ -3,8 +3,8 @@
 The smallest working [Stintmate connector](../docs/guide.md), for authors of new
 ones (and their agents). It reads no simulator: a fake recorder plays one synthetic session
 (garage exit, out lap, flying laps, one invalid, pit stop, a second stint) through the real
-contract. Copy this folder, rename it, and replace `Recorder._play` with the reading of your
-simulator.
+contract. Copy this folder, rename it, replace `game.py` (is the game running?) and `session.py`
+(what a session of your simulator holds), and keep the rest.
 
 It depends only on `stintmate-ipc`, the Python binding of the Rust implementation of Stintmate
 IPC (`pyproject.toml`: a path source; it is the wheel `fetch-ipc.ps1` puts in `vendor/`, so nothing is
@@ -33,11 +33,22 @@ no setting.
 |---|---|---|
 | `fetch-ipc.ps1` | Downloads the `stintmate-ipc` wheel from the release of the `stintmate-ipc-python` repository into `vendor/` and checks its SHA-256 (`STINTMATE_IPC_RELEASE`: a base URL or a local folder instead); `install.ps1` runs it first | 1 |
 | `install.ps1` | Creates the connector's own Python environment in its install folder and writes the descriptor `%LOCALAPPDATA%\Stintmate\connectors\skeleton.json` with the **absolute** launcher (`-Uninstall` removes both) | 1, 2 |
-| `src/skeleton_connector/main.py` | The launcher: accepts `--workspace --managed --parent-pid --allow-synced`, holds the single-instance mutex, logs to `control.log` | 3, 4 |
-| `src/skeleton_connector/control.py` | The endpoint `connector-skeleton`: `control.state` (one delegable service `recorder`), `control.quit`, `control.managed`, `control.service.start/stop`, `control.catalog.get` | 5 |
-| `src/skeleton_connector/recorder.py` | The hello, `connector.status`, per-connection declarations (catalog, guidance, actions), `connector.action` (`test.ping`), the writes in order with idempotency keys, an announcement | 6 |
+| `src/skeleton_connector/__init__.py` | The names, and `dev_tag()` and `pipe(app)`: with `STINTMATE_DEV_INSTANCE=<tag>` every pipe takes the tag, so a test run never meets a real Stintmate | 3 |
+| `src/skeleton_connector/main.py` | The launcher: runs below normal priority, accepts `--workspace --managed --parent-pid --allow-synced`, holds the single-instance mutex (with the tag when there is one), logs to `control.log` (folder made on the first run, capped at about 1 MB and two older copies) | 3, 4 |
+| `src/skeleton_connector/control.py` | The endpoint `connector-skeleton`: `control.state` (one delegable service `recorder`: `stopped`, `waiting`, `recording`), `control.quit` (while managed, only the managing process or its children may ask), `control.managed`, `control.service.start/stop`, `control.catalog.get` | 5 |
+| `src/skeleton_connector/game.py` | **Replace first.** `Game.running()`: is the game running? Check its process, never its data channel. The fake: the file `<workspace>\connectors\skeleton\fake_game` exists | |
+| `src/skeleton_connector/session.py` | **Replace next.** The catalog, the synthetic session and the nine channels of a lap, with their units and signs | |
+| `src/skeleton_connector/outbox.py` | Keep. Every write goes to disk first and is sent in order with its key; retryable errors keep the file, the six refusals move it to `rejected/` | |
+| `src/skeleton_connector/recorder.py` | Links to Pitwall when it starts, whatever the game does; checks the game every 2 s; the hello, `connector.status`, per-connection declarations (catalog, guidance, actions), `connector.action` (`test.ping`), the writes through the outbox, an announcement (never queued) | 6 |
 | `src/skeleton_connector/texts.py` | The announcement catalog, one guidance item, the sample action `test.ping` and the window catalog, all in English | 7 |
-| `tests/test_conformance.py` | A fake Pitwall built from the documents' names, `stintmate-ipc-check server`, the descriptor | 8 |
+| `tests/test_conformance.py`, `tests/test_outbox.py` | A fake Pitwall built from the documents' names (it can refuse, vanish and come back), the outbox, `stintmate-ipc-check server`, the descriptor | 8 |
+
+### The fake game
+
+There is no simulator. Create the file `<workspace>\connectors\skeleton\fake_game` and the
+recorder, which checks it every 2 s, sets `game_running` and plays one session; delete the file
+and it closes the session. With no file the recorder stays linked to Pitwall, writes nothing and
+reads nothing. Your `Game.running()` takes the file's place.
 
 ## Step by step
 
@@ -77,7 +88,9 @@ no setting.
    with a random 16-hex `session_key`, and the facts of protocol section 11: `pit_exit` for
    each exit, `lap` with `lap_type`, `valid`, `time_s` only when timed, `sim_lap` and
    `on_track`, then `session_end`. Every write has its idempotency key
-   (`<id>/<session_key>/lap/<seq>`) and is sent again, same key, until Pitwall answers. The
+   (`<id>/<session_key>/lap/<seq>`), is stored in `<workspace>\connectors\skeleton\outbox\`
+   first and is sent from there in order, again with the same key, until Pitwall answers; the
+   link to Pitwall opens when the recorder starts, not when the game does ([link rule](../docs/levels.md)). The
    connector never sends a `stint`: Pitwall numbers laps and decides stints.
 6. **Words.** Everything you say is English and declared, never translated: the announcement
    catalog (`pitwall.catalog.declare`, then `pitwall.announce` with a code and params), the
@@ -91,7 +104,8 @@ no setting.
    uv sync
    uv run pytest -q
    ```
-   The tests run the recorder against a fake Pitwall, the endpoint as a hub uses it,
+   The tests run under a random `STINTMATE_DEV_INSTANCE`, with temporary workspaces and pipe
+   names of their own. They run the recorder against a fake Pitwall, the endpoint as a hub uses it,
    `stintmate-ipc-check server` against the endpoint, and `install.ps1 -SkipInstall` (which
    writes only the descriptor). Before the first real session also try your recorder against
    a throw-away `pitwall-core` in a temporary workspace, never the user's.
@@ -108,7 +122,8 @@ Without the hub, start `skeleton-connector.exe --workspace <workspace>` yourself
 
 Rename the package, `CONNECTOR_ID` (equal to the folder name; `^[a-z0-9][a-z0-9_-]{0,31}$`), the mutex, the
 service ids and `sim`; keep `install.ps1` and the descriptor in step (the test fails when they
-drift). Replace the script in `recorder.py` with the study of your simulator
+drift). Replace `game.py` and the script in `session.py` with the study of your simulator
 ([guide, section 10](../docs/guide.md#10-the-telemetry-study-and-the-findings-document)):
-a real recorder keeps its sampling loop free and writes through an outbox on another thread
-([protocol 3.3](../docs/connector-protocol.md)).
+a real recorder keeps its sampling loop free, hands each finished lap to the outbox from another
+thread ([protocol 3.3](../docs/connector-protocol.md)) and reads nothing from the game while it
+is closed.
