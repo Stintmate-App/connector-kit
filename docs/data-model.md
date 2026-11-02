@@ -13,7 +13,8 @@ vocabularies you map your simulator onto and which channels exist.
 - **Fixed vocabulary and units** where Pitwall reasons (session type, lap type, setup basics,
   channels); free text where it only shows (names, compounds, a rival's race state).
 - **Optional means absent.** Weather, fuel, sectors, setups, rivals and every channel except
-  `t`, `dist`, `speed` are optional; analysis says what is missing instead of failing.
+  `t`, `dist`, `speed` are optional to store. Some analyses need some of them
+  ([levels.md section 5](levels.md)): without a required channel they raise "not found".
 - **Pitwall's ids:** `session_id`, lap numbers 1..n per session and `lap_id` are assigned by
   Pitwall. Only an importer of old data (the write API's import mode) gives them explicitly.
 
@@ -43,7 +44,7 @@ Times are ISO 8601 text **with a UTC offset** (`2026-10-18T18:00:00+02:00`).
 ## Vocabularies
 
 Connectors map their simulator's own values onto these. The exact lists are in
-[`contract.json`](../contract.json) (in the repository; the release zip does not carry it).
+[`contract.json`](../contract.json) (also in the release zip).
 
 - **Session type:** `practice`, `qualifying`, `race`, `warmup`, `other`.
 - **Lap type:** `formation` (before a race start, never timed), `out` (leaves the pits or the
@@ -121,8 +122,8 @@ in the same session, so readers group by `(participant, name)`.
 
 A lap's channels are equally long float32 arrays, one value per sample in time order (a
 connector chooses its rate; the reference recorders sample at about 50 Hz). `t`, `dist` and
-`speed` are **required** when a lap has channels; `x` and `z` are needed for track outlines,
-track maps and corners; everything else is optional. Connector-specific channels use the
+`speed` are **required** when a lap has channels; `x` and `z` are needed for track outlines and track maps,
+`throttle`, `brake` and `g_lat` for lap analysis, comparison and corners; everything else is optional. Connector-specific channels use the
 prefix `ext_` (stored, never analysed): `ext_` plus 1..60 ASCII letters, digits or
 underscores, at most 64 characters in all.
 

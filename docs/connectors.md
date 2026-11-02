@@ -100,10 +100,12 @@ Before writing code, find (and write down in the connector's own docs, with how 
  "channels": {"t": [...], "dist": [...], "speed": [...], "x": [...], "z": [...]}}
 ```
 
-With `t`, `dist`, `speed` (required when a lap has channels) Pitwall can list laps and compare
-them along the lap; with the position `x`, `z` it can draw the track. Corner detection needs
-`g_lat`, and each further channel (`throttle`, `brake`, `steer`, tyres...) enables more of the
-analysis. A lap without channels (times only) is accepted too.
+With `t`, `dist`, `speed` (required when a lap has channels) Pitwall stores and lists the lap.
+Analysis needs more: lap analysis, comparison and corner detection also need `throttle`, `brake`,
+`g_lat` and the layout's `length_m`, and raise "not found" without them; the track outline needs
+`x` and `z`; each further channel (`steer`, tyres...) enables more of the analysis. What each
+function needs is the table in [levels.md section 5](levels.md). A lap without channels (times
+only) is accepted too.
 
 ## 5. Talking to the core
 
@@ -124,10 +126,10 @@ backoff and re-subscribes after every reconnect.
 > process exists and before the first write of a session.
 
 **Hello.** `peer.app` `connector-<id>`, `peer.process` the service, and `peer.meta`
-`{connector_id, connector_name, sim, sim_name, service}`. A `bye` with `connector_busy`
-(another connector is connected) or `busy` (the same service is connected) closes the
-connection: log it and retry later (a write refused for `connector_busy` carries
-`retry_ms` 10000). A hello whose metadata is missing a field, or whose `connector_id` is not
+`{connector_id, connector_name, sim, sim_name, service}`. A `bye` with `busy` (the same
+service is connected) closes the connection: log it and retry later. A Pitwall older than
+contract 2 also closes with `connector_busy` when another connector is connected, and answers a
+write with it (`retry_ms` 10000): treat it like any retryable code. A hello whose metadata is missing a field, or whose `connector_id` is not
 the slug of `peer.app`, or whose `sim` is not a slug, gets `bad_request`.
 
 **Writing.** Each write API message goes as one method, `pitwall.write.<type>`, with the

@@ -85,12 +85,18 @@ control endpoint. It lives in
 
   A connection whose `meta` fails these is closed with `bye` `bad_request` (the message names
   the problem).
-- **One connector at a time.** A connection of another `connector-*` app while one is connected
-  is closed with `bye` `connector_busy` (the message names the connected one): wait 10 s before
-  retrying. A second connection of the same service is closed with `busy`; every connection of a
-  connector names the same `sim` (otherwise `bad_request`). A connector is *connected* while any
-  of its connections is open (there is no status heartbeat: the connection is the liveness); its
-  *functions* are what its connections declare.
+- **Many connectors at once, one active.** Pitwall accepts the connections of every `connector-*`
+  app at the same time; the link rule above says which one is active. A second connection of the
+  same service is closed with `busy`; every connection of a connector names the same `sim`
+  (otherwise `bad_request`). A connector is *linked* while any of its connections is open (there
+  is no status heartbeat: the connection is the liveness); its *functions* are what its
+  connections declare. A Pitwall older than contract 2 (`contract_version` in
+  [`contract.json`](../contract.json)) serves one connector at a time and closes the connection
+  of a second one with `bye` `connector_busy` (the message names the connected one): retry
+  after 10 s, like any other retryable close. The current Pitwall never sends that code.
+- **The service that records has the id `recorder`** (`process` in the hello, `id` in
+  `control.state`); further services have other ids. What `control.state.pitwall` and a
+  service's `state` mean is in [contract.md section 3.2](contract.md).
 - Requests may follow the handshake at once: the core registers the connection first (a request
   that arrives before the registration is finished waits up to 2 s for it).
 
@@ -248,9 +254,10 @@ write API's `hello` is not sent: Pitwall builds it from `peer.meta`.
 - **Idempotency.** Pitwall stores each key in the same database transaction as the write and
   keeps it with the database: a repeat gets the first answer and stores nothing. `writer_busy`
   (the database is held by an import; `retry_ms` is 5000), `busy`, `timeout` and
-  `shutting_down` do not consume the key: send the same call again. A write that arrives while
-  another connector is connected is answered `connector_busy` (`retry_ms` 10000) and a
-  connection not yet registered gets `unavailable` (`retry_ms` 1000); both keep the key too.
+  `shutting_down` do not consume the key: send the same call again. A connection not yet
+  registered gets `unavailable` (`retry_ms` 1000), which keeps the key too. A Pitwall older than
+  contract 2 also answers `connector_busy` (`retry_ms` 10000) to a write while another connector
+  is connected; the key is kept then as well.
 - **Refused writes**: `bad_request` with the write API's error in `msg` (it names the field)
   and its reply in `details.reply`. Not retryable: nothing was stored, the session goes on.
 
@@ -728,7 +735,7 @@ laps to finish.
 | `lap` | the player's lap now: `current_lap` (the simulator's number), `laps_completed`, `distance_m` (from the line), `time_s` (lap clock, `null` while not timed: out lap, pits, before the start), `valid`, `sector` (1-based), `last_lap_s`, `best_lap_s` (the player's session best by the simulator); optional, [why not timed or not valid](#71-why-a-lap-is-not-timed-or-not-valid): `lap_type`, `invalid_cause`, `invalid_cause_certain`, `invalid_at_m` | in a session, absent with no player car (spectating) |
 | `splits` | `ahead_s`, `behind_s`: the simulator's own time gaps to the cars ahead and behind, if it has them (Pitwall uses them in races only) | optional |
 | `conditions` | the write API's conditions: `ambient_c`, `track_c`, `rain` (0..1), `wind_speed_ms`, `cloud` (0..1 cover; leave out a value on another scale) | optional |
-| `participants` | every car, the player included: `index` (the simulator's slot), `name`, `is_player`, `is_safety_car`, `active` (false = a listed slot not in the session now), `position` (`null` = unknown), `laps_completed`, `current_lap`, `distance_m`, `sector`, `pit_mode`, `car_id`, `class_id`, `last_lap_s`, `best_lap_s` | in a session |
+| `participants` | every car, the player included: `index` (the simulator's slot), `name`, `is_player`, `is_safety_car`, `active` (false = a listed slot not in the session now), `position` (`null` = unknown), `laps_completed`, `current_lap`, `distance_m`, `sector`, `pit_mode`, `car_id`, `class_id`, `last_lap_s`, `best_lap_s`. At least one entry has `is_player: true`, also for a game with one car: without it Pitwall answers its live tools with `not_on_track` | in a session |
 
 "In a session": `phase` `garage`, `on_track` or `paused` (the groups are absent in `menus`).
 Without a session on track Pitwall answers its tools with `not_on_track`. `lap.current_lap` and
@@ -777,7 +784,7 @@ The protocol's codes (IPC `SPEC.md` section 11) plus the application's, listed i
 | `session_closed`, `unknown_session` | writes | The `session_key` was closed by Pitwall, or never started. |
 | `unknown_code` | announce | A code not in the declared catalog (or nothing declared). |
 | `rate_limited` | announce | More than 10 in 60 s (120 for `spotter`); `retry_ms`. |
-| `connector_busy` | `bye`, writes | Another connector id is connected; retry after 10 s. |
+| `connector_busy` | `bye`, writes | Sent only by a Pitwall older than contract 2, while another connector id was connected. Retryable like any other code: retry after 10 s. |
 | `game_not_running`, `not_on_track`, `not_configured`, `busy`, `internal` | the connector's answers | Relayed to the tool unchanged. |
 | `window_minimized`, `not_capturable` | `connector.capture_target` | The window cannot be grabbed: `window_minimized` is refused with the connector's `msg`; `not_capturable` makes Pitwall use the foreground window (section 4). |
 | `blank_frame` | `pitwall.capture` | The grab returned a black or flat frame (Pitwall's own). |
