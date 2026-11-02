@@ -65,12 +65,9 @@ CHECKS: list[Check] = [
     Check("M17.hold", "Hold and release when setup replaces a running connector", "manual",
           manual=True),
     Check("F.names", "Declared features are known names", "features", features=True),
-    Check("F.live_frame", "Live frame valid, in menus and on track", "features", features=True),
-    Check("F.capture_target", "connector.capture_target", "features", features=True),
-    Check("F.brake_cues", "connector.telemetry", "features", features=True),
-    Check("F.actions", "connector.action, test.ping answers", "features", features=True),
-    Check("F.guidance", "pitwall.guidance.declare", "features", features=True),
-    Check("F.announcements", "pitwall.catalog.declare", "features", features=True),
+    Check("F.actions", "Declared actions, and test.ping answers", "features", features=True),
+    Check("F.guidance", "Declared guidance reached Pitwall", "features", features=True),
+    Check("F.announcements", "Declared announcement catalog reached Pitwall", "features", features=True),
     Check("M5.stranger", "A stranger cannot make a managed app quit", "quit"),
     Check("M5.quit", "The managing process makes it quit within 20 s", "quit"),
 ]
@@ -1007,6 +1004,39 @@ def cpu_checks(ctx: Ctx) -> None:
         rep.failed("M15.priority", "not below normal priority: " + ", ".join(m.above_normal))
     else:
         rep.passed("M15.priority", f"{m.processes} processes, all below normal or idle")
+
+
+# ---- declared features (--level features) ---------------------------------------------------
+
+@group("features")
+def feature_checks(ctx: Ctx) -> None:
+    rep, desc = ctx.report, ctx.descriptor
+    unknown = desc_mod.unknown_features(desc, list(ctx.contract["vocabularies"]["features"]))
+    if unknown:
+        rep.failed("F.names", "not in the features list of contract.json: " + ", ".join(unknown))
+    else:
+        rep.passed("F.names", f"{len(desc.get('features') or [])} declared names, all known")
+    ids = ["F.announcements", "F.guidance", "F.actions"]
+    if not need_boot(ctx, ids):
+        return
+    declared, core = desc.get("features") or [], ctx.core
+    core.wait(lambda: len(core.declared) >= 3, 10.0)
+    for fid, feature, method in (("F.announcements", "announcements", "pitwall.catalog.declare"),
+                                 ("F.guidance", "guidance", "pitwall.guidance.declare"),
+                                 ("F.actions", "actions", "pitwall.actions.declare")):
+        if feature not in declared:
+            rep.passed(fid, "not declared")
+        elif method not in core.declared:
+            rep.failed(fid, f"declared in the descriptor, but {method} never reached Pitwall")
+        elif feature != "actions":
+            rep.passed(fid, f"{method} received")
+        else:
+            try:
+                res = core.call("connector.action", {"code": "test.ping", "params": {}})
+                ok = isinstance(res, dict) and "pong" in res
+                rep.set(fid, PASS if ok else FAIL, f"test.ping answered {res!r}")
+            except Exception as exc:  # noqa: BLE001
+                rep.failed(fid, f"connector.action test.ping: {exc!r}")
 
 
 # ==== END OF GROUPS ====
