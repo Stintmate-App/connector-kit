@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+- New [`docs/levels.md`](docs/levels.md): what a connector must do (minimum), what it may add (parity) and where it may extend the contract (beyond), what each analysis needs, and how the contract versions.
+- The link rule: a connector connects when its recorder starts, whatever the game does, and stays connected. Pitwall listens to every connector; the one whose game runs is the active one. The rule is in `levels.md`, the protocol and the connector guide.
+- The idle budget: with the game closed, at most 0.5 % of one core over 60 s for all the connector's processes, and the game's data channel is not read. `contract.json` has it under `budgets`.
+- `STINTMATE_DEV_INSTANCE=<tag>` separates a connector under development from a real Stintmate on the same machine (pipe names and mutex name).
+- Outbox: a write is rejected only for `bad_request`, `session_closed`, `unknown_session`, `too_large`, `unknown_method` or `version_unsupported`; any other error keeps the file and retries with the same key after `retry_ms` (1 s by default, at most 10 s). `contract.json` lists them under `write_errors`.
+- `contract.md` defines `control.state.pitwall` and the service states, and says which of them the hub uses.
+- New JSON Schemas: `docs/live-frame.schema.json` (with `docs/live-frame.sample.json`), `docs/control-state.schema.json` and `docs/descriptor.schema.json`. The live frame in a session requires `lap` and at least one participant with `is_player: true`.
+- The descriptor has two optional keys, `window` and `features`; `schema` stays 1.
+- `contract.json` has `contract_version` (2) and, under `vocabularies`, `control_pitwall`, `service_states`, `minimum_channels`, `position_channels` and `features`.
+
 ## 0.1.5 (2026-11-01)
 
 - The zip carries `contract.json`, and a test ties the zip to the README's list.
