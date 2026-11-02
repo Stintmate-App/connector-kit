@@ -32,7 +32,8 @@ no setting.
 | File | What it shows | Guide section |
 |---|---|---|
 | `fetch-ipc.ps1` | Downloads the `stintmate-ipc` wheel from the release of the `stintmate-ipc-python` repository into `vendor/` and checks its SHA-256 (`STINTMATE_IPC_RELEASE`: a base URL or a local folder instead); `install.ps1` runs it first | 1 |
-| `install.ps1` | Creates the connector's own Python environment in its install folder and writes the descriptor `%LOCALAPPDATA%\Stintmate\connectors\skeleton.json` with the **absolute** launcher (`-Uninstall` removes both) | 1, 2 |
+| `install.ps1` | Creates the connector's own Python environment in its install folder and writes the descriptor `%LOCALAPPDATA%\Stintmate\connectors\skeleton.json` with the **absolute** launcher (`-Update` holds the running connector first, `-Uninstall` removes both; see section 2) | 1, 2 |
+| `src/skeleton_connector/setup_hold.py` | Keep. What `install.ps1` asks of the running hub: `hold`, `release` and, with no hub, `stop` (section 2) | 1 |
 | `src/skeleton_connector/__init__.py` | The names, and `dev_tag()` and `pipe(app)`: with `STINTMATE_DEV_INSTANCE=<tag>` every pipe takes the tag, so a test run never meets a real Stintmate | 3 |
 | `src/skeleton_connector/main.py` | The launcher: runs below normal priority, accepts `--workspace --managed --parent-pid --allow-synced`, holds the single-instance mutex (with the tag when there is one), logs to `control.log` (folder made on the first run, capped at about 1 MB and two older copies) | 3, 4 |
 | `src/skeleton_connector/control.py` | The endpoint `connector-skeleton`: `control.state` (one delegable service `recorder`: `stopped`, `waiting`, `recording`), `control.quit` (while managed, only the managing process or its children may ask), `control.managed`, `control.service.start/stop`, `control.catalog.get` | 5 |
@@ -40,8 +41,9 @@ no setting.
 | `src/skeleton_connector/session.py` | **Replace next.** The catalog, the synthetic session and the nine channels of a lap, with their units and signs | |
 | `src/skeleton_connector/outbox.py` | Keep. Every write goes to disk first and is sent in order with its key; retryable errors keep the file, the six refusals move it to `rejected/` | |
 | `src/skeleton_connector/recorder.py` | Links to Pitwall when it starts, whatever the game does; checks the game every 2 s; the hello, `connector.status`, per-connection declarations (catalog, guidance, actions), `connector.action` (`test.ping`), the writes through the outbox, an announcement (never queued) | 6 |
-| `src/skeleton_connector/texts.py` | The announcement catalog, one guidance item, the sample action `test.ping` and the window catalog, all in English | 7 |
-| `tests/test_conformance.py`, `tests/test_outbox.py` | A fake Pitwall built from the documents' names (it can refuse, vanish and come back), the outbox, `stintmate-ipc-check server`, the descriptor | 8 |
+| `src/skeleton_connector/texts.py` | The announcement catalog, one guidance item, the sample action `test.ping` and the window catalog, all in English, and the loader of the user's language pack for the window's texts | 7 |
+| `examples/` | One small module for each optional piece: the live frame, `connector.capture_target`, setups, options. Importable, not imported by the skeleton; each starts with the lines to add | 6 |
+| `tests/test_conformance.py`, `tests/test_outbox.py`, `tests/test_setup.py`, `tests/test_examples.py` | A fake Pitwall built from the documents' names (it can refuse, vanish and come back), the outbox, `stintmate-ipc-check server`, the descriptor, a fake hub for the hold, install, update and uninstall in a temporary folder, the language pack, the examples | 8 |
 
 ### The fake game
 
@@ -64,8 +66,17 @@ reads nothing. Your `Game.running()` takes the file's place.
    atomically: the launcher is `<Destination>\.venv\Scripts\skeleton-connector.exe`, absolute,
    and `logs` name files in `<workspace>\connectors\skeleton\`. The contract asks only for the
    file to be in place and correct; an installer, a file you ship or a command are all fine.
-   `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall` removes the file (only if its launcher is under the destination)
-   and the folder. Stintmate installs nothing for you and provides no Python.
+   The script copies itself to `<Destination>\install.ps1` and the descriptor's `uninstall` key
+   runs that copy through Windows PowerShell (`-Uninstall -Destination <folder>`), so Stintmate can
+   remove the install. `.\install.ps1 -Update` and `-Uninstall` first **hold** the connector
+   ([connector-protocol.md section 1.2](../docs/connector-protocol.md)): `setup_hold hold` asks
+   the hub to quit it and keep it stopped, and `release` ends the hold; with no hub it asks the
+   connector to quit (`setup_hold stop`). If a session is being recorded, the script exits with
+   code 1 and changes nothing. `-Uninstall` removes the descriptor only if its launcher is under
+   the destination, releases without starting, and then removes the folder; a descriptor removed
+   while held leaves the connector "updating" until it is released. Run `install.ps1` from
+   Windows PowerShell or PowerShell 7, with a path that has spaces or not. Stintmate installs
+   nothing for you and provides no Python.
 3. **Being started.** The hub runs the launcher with `--workspace <w> --managed --parent-pid
    <pid>`. `main.py` takes the mutex `Local\SkeletonConnector.Control` (the descriptor names it:
    the hub's liveness check), serves the endpoint and waits. `control.quit` answers at once and
@@ -95,9 +106,11 @@ reads nothing. Your `Game.running()` takes the file's place.
 6. **Words.** Everything you say is English and declared, never translated: the announcement
    catalog (`pitwall.catalog.declare`, then `pitwall.announce` with a code and params), the
    guidance (`pitwall.guidance.declare`) and, for a window, `control.catalog.get`. The hub
-   translates every catalog. The skeleton has no pack loader, so the texts in `control.state`
-   (`name`, `label`) stay English; a connector with a window reads the language from
-   `<workspace>\hub\settings.json` and loads the pack `<workspace>\locales\<tag>\skeleton-connector.json`.
+   translates every catalog. The skeleton's `texts.py` also reads the language once at start from
+   `<workspace>\hub\settings.json` and loads the pack
+   `<workspace>\locales\<tag>\skeleton-connector.json` for the texts in `control.state`
+   (`name`, `label`), per key along the chain (`es-CL`, `es`, `en`), the built-in English last; a
+   file that is missing or bad is logged and skipped.
 7. **Test.**
    ```
    powershell -ExecutionPolicy Bypass -File .\fetch-ipc.ps1    # once: the stintmate-ipc wheel into vendor/
@@ -106,8 +119,8 @@ reads nothing. Your `Game.running()` takes the file's place.
    ```
    The tests run under a random `STINTMATE_DEV_INSTANCE`, with temporary workspaces and pipe
    names of their own. They run the recorder against a fake Pitwall, the endpoint as a hub uses it,
-   `stintmate-ipc-check server` against the endpoint, and `install.ps1 -SkipInstall` (which
-   writes only the descriptor). Before the first real session also try your recorder against
+   `stintmate-ipc-check server` against the endpoint, `install.ps1` in a temporary folder (install, `-Update` and the
+   `uninstall` command, against a fake hub), and the examples. Before the first real session also try your recorder against
    a throw-away `pitwall-core` in a temporary workspace, never the user's.
 
 ## Try it by hand
