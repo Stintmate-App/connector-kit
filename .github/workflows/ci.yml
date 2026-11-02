@@ -29,6 +29,9 @@ jobs:
       - name: Skeleton tests
         working-directory: skeleton
         run: uv run pytest -q
+      - name: Checker tests
+        working-directory: checker
+        run: uv run pytest -q
       - name: Kit tests
         run: uv run --no-project --with pytest pytest -q tests
       - name: JSON files are valid

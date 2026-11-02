@@ -24,6 +24,7 @@ Licensed under the Apache License 2.0 (see `LICENSE` and `NOTICE`).
 | `docs/write-api.md`, `docs/write-api.schema.json` | The write API and its JSON schema |
 | `docs/events.md` | The event feed |
 | `contract.json` | The connector-facing names, codes, vocabularies and limits, machine readable (also in the release zip) |
+| `checker/` | `connector-check`: starts your connector from its descriptor against a fake Pitwall and reports the checks of [levels.md](docs/levels.md). Python; needs the wheel that `skeleton/fetch-ipc.ps1` downloads; works for a connector in any language |
 | `native/` | For a connector in any other language: where the C header and the native DLL come from (the stintmate-ipc release) |
 | `skeleton/` | The smallest working connector (a fake simulator that plays one synthetic session through the real contract): copy it, rename it, replace the fake recorder with the reading of your game. Python, an example to read and copy; its README is the step by step. `fetch-ipc.ps1` downloads the `stintmate-ipc` wheel (the Python binding, with the native DLL; an asset of the stintmate-ipc-python release) into `vendor/`; `install.ps1` registers it, `tests/test_conformance.py` checks it |
 
