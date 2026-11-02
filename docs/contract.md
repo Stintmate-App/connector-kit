@@ -352,7 +352,7 @@ Set on every change; no periodic resend (the connection is the liveness).
 | `phase` | str? | `menus`, `garage`, `on_track`, `paused`; nil when the game is not running. |
 | `session_key` | str? | The session this service writes (recorder), else nil. |
 | `stint`, `lap` | int? | What it writes now (Pitwall's numbers as last answered). |
-| `live` | map? | The car and layout on track now: `{session_type: "practice"\|"qualifying"\|"warmup"\|"race"\|"other", car_id, track_id, layout_id, track_length_m: float?}`; nil outside a session. |
+| `live` | map? | The car and layout on track now: `{session_type: "practice"\|"test"\|"qualifying"\|"warmup"\|"race"\|"other", car_id, track_id, layout_id, track_length_m: float?}`; nil outside a session. |
 | `outbox` | map? | Recorder: `{pending: int, oldest_at: str?, rejected: int}` (5.4). |
 | `error_code`, `message` | str? | The service's own problem (`unsupported_sim_version`, `no_data`, `not_configured`...), `message` a short English diagnostic for logs and the agent: no app shows it as it is. |
 
