@@ -55,7 +55,8 @@ WINDOW: dict[str, Any] = {
     "language_name": "English",
     "messages": {
         "service.recorder.name": {"text": "Recorder"},
-        "service.state.running": {"text": "Running"},
+        "service.state.waiting": {"text": "Waiting for the game"},
+        "service.state.recording": {"text": "Recording"},
         "service.state.stopped": {"text": "Stopped"},
     },
 }

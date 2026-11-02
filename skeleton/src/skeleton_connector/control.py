@@ -17,10 +17,11 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from stintmate_ipc import Endpoint, KeyFile, PeerInfo, RemoteError, default_key_path, pipe_path
+from stintmate_ipc import Endpoint, KeyFile, PeerInfo, RemoteError, default_key_path
 
 from . import (APP_ID, CONNECTOR_ID, CONNECTOR_NAME, CONNECTOR_VERSION, CONTROL_APP, SERVICE_ID,
                SIM, SIM_NAME)
+from . import pipe as pipe_for
 from .recorder import Recorder
 from .texts import t, window_document
 
@@ -40,16 +41,55 @@ def pid_alive(pid: int) -> bool:
         kernel32.CloseHandle(ctypes.c_void_p(handle))
 
 
+def parent_of() -> dict[int, int]:
+    """Every process id with its parent's, from a snapshot (Windows has no direct call)."""
+    class Entry(ctypes.Structure):
+        _fields_ = [("size", ctypes.c_uint32), ("usage", ctypes.c_uint32),
+                    ("pid", ctypes.c_uint32), ("heap", ctypes.c_size_t),
+                    ("module", ctypes.c_uint32), ("threads", ctypes.c_uint32),
+                    ("ppid", ctypes.c_uint32), ("priority", ctypes.c_long),
+                    ("flags", ctypes.c_uint32), ("exe", ctypes.c_wchar * 260)]
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateToolhelp32Snapshot.restype = ctypes.c_void_p
+    snap = kernel32.CreateToolhelp32Snapshot(0x2, 0)              # TH32CS_SNAPPROCESS
+    parents: dict[int, int] = {}
+    try:
+        entry = Entry()
+        entry.size = ctypes.sizeof(Entry)
+        ok = kernel32.Process32FirstW(ctypes.c_void_p(snap), ctypes.byref(entry))
+        while ok:
+            parents[entry.pid] = entry.ppid
+            ok = kernel32.Process32NextW(ctypes.c_void_p(snap), ctypes.byref(entry))
+    finally:
+        kernel32.CloseHandle(ctypes.c_void_p(snap))
+    return parents
+
+
+def is_or_descends_from(pid: int | None, ancestor: int) -> bool:
+    """Whether `pid` is `ancestor` or one of its descendants."""
+    if pid is None:
+        return False
+    parents = parent_of()
+    seen = set()
+    while pid and pid not in seen:
+        if pid == ancestor:
+            return True
+        seen.add(pid)
+        pid = parents.get(pid, 0)
+    return False
+
+
 class ControlApp:
     def __init__(self, workspace: str | os.PathLike[str], *, pipe: str | None = None,
                  pitwall_pipe: str | None = None, managed: bool = False,
-                 parent_pid: int | None = None, lap_period_s: float = 2.0) -> None:
+                 parent_pid: int | None = None, lap_period_s: float = 2.0,
+                 game_check_s: float = 2.0) -> None:
         self.workspace = Path(workspace)
         # The key is only read, never created: the hub's onboarding makes it (guide, section 4).
         self.key = KeyFile(default_key_path(self.workspace), create=False)
-        self.pipe = pipe or pipe_path(APP_ID)
-        self.pitwall_pipe = pitwall_pipe or pipe_path("pitwall")
-        self.lap_period_s = lap_period_s
+        self.pipe = pipe or pipe_for(APP_ID)
+        self.pitwall_pipe = pitwall_pipe or pipe_for("pitwall")
+        self.lap_period_s, self.game_check_s = lap_period_s, game_check_s
         self.managed, self.parent_pid = managed, parent_pid
         self.exiting = False
         self.exit = threading.Event()               # set when the process should end
@@ -87,10 +127,11 @@ class ControlApp:
     # ---- the state ---------------------------------------------------------------------
 
     def service(self) -> dict[str, Any]:
-        running = self.recorder is not None
-        return {"id": SERVICE_ID, "name": t("service.recorder.name"),
-                "state": "running" if running else "stopped",
-                "label": t("service.state.running" if running else "service.state.stopped"),
+        rec = self.recorder
+        running = rec is not None
+        state = "stopped" if rec is None else "recording" if rec.recording else "waiting"
+        return {"id": SERVICE_ID, "name": t("service.recorder.name"), "state": state,
+                "label": t(f"service.state.{state}"),
                 "level": "ok" if running else "off", "running": running, "ownership": "app",
                 "forced_stop": False,
                 # Section 1.1: let the hub keep this service on or off across restarts.
@@ -108,7 +149,8 @@ class ControlApp:
                 "game_running": bool(rec is not None and (rec.status.value or {})
                                      .get("game_running")),
                 "pitwall": rec.state if rec is not None else "waiting",
-                "outbox": {"pending": 0, "oldest_at": None},
+                "outbox": {k: v for k, v in rec.outbox.summary().items() if k != "rejected"}
+                if rec is not None else {"pending": 0, "oldest_at": None},
                 "start_with_app": []}
 
     def publish(self) -> None:
@@ -125,8 +167,9 @@ class ControlApp:
         with self._lock:
             if self.recorder is not None:
                 return
-            self.recorder = Recorder(self.pitwall_pipe, self.key,
-                                     lap_period_s=self.lap_period_s, on_change=self.publish)
+            self.recorder = Recorder(self.pitwall_pipe, self.key, self.workspace,
+                                     lap_period_s=self.lap_period_s,
+                                     game_check_s=self.game_check_s, on_change=self.publish)
         self.recorder.start()
         self.publish()
 
@@ -157,7 +200,12 @@ class ControlApp:
     # ---- control -----------------------------------------------------------------------
 
     def _quit(self, ctx: Any, params: Any) -> dict[str, Any]:
-        """Return at once; the process ends (services stopped) within 20 s."""
+        """Return at once; the process ends (services stopped) within 20 s. While managed, only
+        the managing process or one of its children may ask (a stranger gets `managed`)."""
+        if self.managed and self.parent_pid and not is_or_descends_from(ctx.peer.pid,
+                                                                        self.parent_pid):
+            raise RemoteError("managed", "this app is managed; ask the managing app to quit it",
+                              {"managed_by": self.parent_pid})
         self.exiting = True
         self.publish()
         threading.Timer(0.1, self.exit.set).start()

@@ -2,8 +2,9 @@
 
 The hub starts the descriptor's ``launcher`` with ``--workspace <w> --managed --parent-pid
 <pid>`` (and ``--allow-synced`` when the folder is synced) appended: all of them are accepted.
-This is a gui-script (no console window), so everything goes to ``control.log`` next to the
-descriptor.
+This is a gui-script (no console window), so everything goes to ``control.log`` in
+``<workspace>/connectors/<id>/``, which the descriptor lists under ``logs``. The folder is
+made on the first run and the log is capped (about 1 MB, two older copies kept).
 """
 
 from __future__ import annotations
@@ -11,16 +12,18 @@ from __future__ import annotations
 import argparse
 import ctypes
 import logging
+import logging.handlers
 import sys
 import time
 from pathlib import Path
 
 from stintmate_ipc import EndpointInUse, find_workspace
 
-from . import CONNECTOR_ID, MUTEX
+from . import CONNECTOR_ID, MUTEX, dev_tag
 from .control import ControlApp
 
 ERROR_ALREADY_EXISTS = 183
+BELOW_NORMAL_PRIORITY_CLASS = 0x4000
 log = logging.getLogger("skeleton_connector")
 
 
@@ -39,19 +42,39 @@ def hold_mutex() -> object | None:
     control app already runs."""
     kernel32 = ctypes.windll.kernel32
     kernel32.CreateMutexW.restype = ctypes.c_void_p
-    handle = kernel32.CreateMutexW(None, False, MUTEX)
+    tag = dev_tag()                                   # a test run has a mutex of its own
+    handle = kernel32.CreateMutexW(None, False, f"{MUTEX}.{tag}" if tag else MUTEX)
     if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
         return None
     return handle                                     # held until the process ends
 
 
+def lower_priority() -> None:
+    """Below normal, for this process and the threads it starts: a connector must not take
+    CPU from the game, which matters most in VR."""
+    kernel32 = ctypes.windll.kernel32
+    kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+    kernel32.SetPriorityClass.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    kernel32.SetPriorityClass(kernel32.GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS)
+
+
+def setup_logging(log_dir: Path) -> logging.Handler:
+    """``control.log`` in `log_dir` (made if missing), capped at about 1 MB plus two copies."""
+    log_dir.mkdir(parents=True, exist_ok=True)
+    handler = logging.handlers.RotatingFileHandler(log_dir / "control.log", maxBytes=1_000_000,
+                                                   backupCount=2, encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    logging.getLogger().addHandler(handler)
+    logging.getLogger().setLevel(logging.INFO)
+    return handler
+
+
 def main(argv: list[str] | None = None) -> int:
+    lower_priority()
     args = parse(argv)
     workspace = Path(args.workspace) if args.workspace else find_workspace()
-    log_dir = (workspace / "connectors" / CONNECTOR_ID) if workspace else Path.cwd()
     try:
-        logging.basicConfig(filename=log_dir / "control.log", level=logging.INFO,
-                            format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+        setup_logging((workspace / "connectors" / CONNECTOR_ID) if workspace else Path.cwd())
     except OSError:
         pass
     mutex = hold_mutex()

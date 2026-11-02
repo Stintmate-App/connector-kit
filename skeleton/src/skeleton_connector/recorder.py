@@ -2,17 +2,20 @@
 
 What a real recorder does, in the smallest form (docs/connector-protocol.md):
 
-- one connection to ``pitwall``, hello as ``connector-<id>`` / process ``recorder`` with the
-  required ``meta`` (section 1); the package's ``Client`` reconnects by itself;
+- it connects to ``pitwall`` when it starts, whatever the game does, and stays connected (the
+  link rule, docs/levels.md section 3): hello as ``connector-<id>`` / process ``recorder`` with
+  the required ``meta`` (section 1); the package's ``Client`` reconnects by itself;
 - at every connection: the announcement catalog, the guidance and the actions (and it serves
   `connector.action`, section 5.2);
-- the car and track catalog, then the facts of a session in order, each write with its
-  idempotency key (section 3.1): a repeated call after a lost answer stores nothing twice, so
-  a failed write is simply sent again;
+- a check of the game at most every 2 s (``game.py``); nothing else is read while it is closed.
+  ``game_running`` is set in ``connector.status`` as soon as the game appears, before the first
+  write of its session;
+- every write goes to the outbox on disk (``outbox.py``) with its idempotency key (section 3.1)
+  and is sent from there, so a lap finished while Pitwall is away is not lost;
 - ``connector.status`` set on every change (section 2.1).
 
-A real recorder reads the simulator on a fast loop and writes through an outbox on another
-thread (section 3.3); this one has no loop to protect, so it writes inline.
+A real recorder samples the simulator on a fast loop of its own, below normal priority, and
+hands each finished lap to the outbox from another thread (the session thread here).
 """
 
 from __future__ import annotations
@@ -20,40 +23,25 @@ from __future__ import annotations
 import logging
 import secrets
 import threading
-import time
-from array import array
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
-from stintmate_ipc import Client, ConnectionLost, NotConnected, PeerInfo, RemoteError
+from stintmate_ipc import Client, HandshakeError, PeerInfo, RemoteError
 
 from . import APP_ID, CONNECTOR_ID, CONNECTOR_NAME, CONNECTOR_VERSION, SERVICE_ID, SIM, SIM_NAME
+from .game import Game
+from .outbox import Outbox
+from .session import CATALOG, LIVE, SCRIPT, channels
 from .texts import ACTIONS, ANNOUNCEMENTS, GUIDANCE, sha12
 
 log = logging.getLogger("skeleton_connector.recorder")
 
-TRACK_LENGTH_M = 1000.0
-CATALOG = {"classes": [{"class_id": "GT", "name": "Grand Touring"}],
-           "cars": [{"car_id": "car_a", "name": "Skeleton GT", "class_id": "GT"}],
-           "tracks": [{"track_id": "ring", "name": "Skeleton Ring"}],
-           "layouts": [{"track_id": "ring", "layout_id": "full", "name": "Skeleton Ring Full",
-                        "length_m": TRACK_LENGTH_M}]}
-LIVE = {"session_type": "practice", "car_id": "car_a", "track_id": "ring", "layout_id": "full",
-        "track_length_m": TRACK_LENGTH_M}
-
-# The synthetic session: (kind, lap_type, time_s, valid). `pit_exit` is a fact, not a lap.
-# Laps that ended before an exit are written before it (section 11.2).
-SCRIPT: list[tuple[str, str | None, float | None, bool]] = [
-    ("pit_exit", None, None, True),      # leaving the garage: stint 1 starts with the session
-    ("lap", "out", None, True),          # out lap: not timed
-    ("lap", "flying", 61.234, True),
-    ("lap", "flying", 60.987, False),    # invalidated by the simulator: still sent
-    ("lap", "in", None, True),           # ended in the pits: not timed
-    ("pit_exit", None, None, True),      # after a stop on track: stint 2
-    ("lap", "out", None, True),
-    ("lap", "flying", 60.512, True),
-]
+# Codes after which Pitwall closed the connection for a reason a retry will not fix; the
+# control state then says `refused` (docs/contract.md section 3.2).
+REFUSED = ("unauthorized", "bad_request", "busy", "connector_busy")
+GAME_CHECK_S = 2.0                     # the most often the game may be checked
 
 
 def peer_info(service: str = SERVICE_ID) -> PeerInfo:
@@ -63,73 +51,88 @@ def peer_info(service: str = SERVICE_ID) -> PeerInfo:
                           "sim": SIM, "sim_name": SIM_NAME, "service": service})
 
 
-def _f32(values: list[float]) -> dict[str, Any]:
-    return {"encoding": "f32", "data": array("f", values).tobytes()}
-
-
-def channels(n: int = 20, lap_s: float = 60.0) -> dict[str, Any]:
-    """Synthetic lap samples: time, distance and speed (`t`, `dist`, `speed` are required)."""
-    return {"t": _f32([i * lap_s / n for i in range(n)]),
-            "dist": _f32([i * TRACK_LENGTH_M / n for i in range(n)]),
-            "speed": _f32([30.0 + i for i in range(n)])}
-
-
 class Recorder:
-    """``start()`` plays the session once in a thread; ``stop()`` ends it for good.
-    ``state`` is ``connected`` or ``waiting`` (the control app's ``control.state.pitwall``)."""
+    """``start()`` links to Pitwall and watches the game; a session plays while it runs.
+    ``state`` is ``connected``, ``waiting`` or ``refused`` (the control app's
+    ``control.state.pitwall``). ``recording`` tells whether a session is being written."""
 
-    def __init__(self, pipe: str, key: Any, *, lap_period_s: float = 2.0,
+    def __init__(self, pipe: str, key: Any, workspace: str | Path, *, lap_period_s: float = 2.0,
+                 game_check_s: float = GAME_CHECK_S, game: Game | None = None,
                  on_change: Callable[[], None] | None = None) -> None:
         self.client = Client(pipe, peer_info(), key)
         self.client.on_connect = self._on_connect      # runs after every (re)connection
+        self.client.on_disconnect = self._on_disconnect
         self.client.on_connect_error = self._connect_error
         self.client.method("connector.action", self._action)   # a pool thread, not inline
-        self.lap_period_s = lap_period_s
+        self.game = game or Game(workspace)
+        self.outbox = Outbox(Path(workspace) / "connectors" / CONNECTOR_ID / "outbox",
+                             self.client, on_result=self._on_result, on_change=self._outbox_changed)
+        self.lap_period_s, self.game_check_s = lap_period_s, game_check_s
         self.on_change = on_change
         self.status = self.client.state_channel("connector.status", {
             "game_running": False, "phase": None, "session_key": None, "stint": None,
             "lap": None, "live": None, "outbox": None, "error_code": None, "message": None})
         self.message: str | None = None    # why not connected (key missing, Pitwall absent)
+        self.refused: str | None = None    # the code of the last refusal, until a connection
         self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
+        self._watcher: threading.Thread | None = None
+        self._session: threading.Thread | None = None
+        self._session_stop = threading.Event()
 
     @property
     def running(self) -> bool:
-        return self._thread is not None and self._thread.is_alive()
+        return self._watcher is not None and self._watcher.is_alive()
+
+    @property
+    def recording(self) -> bool:
+        return self._session is not None and self._session.is_alive()
 
     @property
     def state(self) -> str:
+        if self.refused:
+            return "refused"
         return "connected" if self.client.connected else "waiting"
 
     def start(self) -> None:
         if self.running:
             return
         self._stop.clear()
-        self.client.start()
-        self._thread = threading.Thread(target=self._run, daemon=True, name="recorder")
-        self._thread.start()
+        self.outbox.start()
+        self.client.start()                              # linked now, game or no game
+        self._watcher = threading.Thread(target=self._watch, daemon=True, name="game-watch")
+        self._watcher.start()
 
     def stop(self) -> None:
         self._stop.set()
-        thread = self._thread
-        if thread is not None and thread is not threading.current_thread():
-            thread.join(10)
-        self._thread = None
+        watcher = self._watcher
+        if watcher is not None and watcher is not threading.current_thread():
+            watcher.join(15)                             # it ends the session first
+        self._watcher = None
+        self.outbox.close(5.0)                           # what is left stays for the next run
         self.client.close()
         self._changed()
 
     # ---- per connection ----------------------------------------------------------------
 
     def _connect_error(self, exc: BaseException) -> None:
-        """The key file or Pitwall is missing: say it once, the client retries by itself."""
+        """The key file or Pitwall is missing, or Pitwall said no: the client retries by itself."""
+        if isinstance(exc, HandshakeError) and exc.code in REFUSED:
+            self.refused = exc.code
         text = str(exc)
         if text != self.message:
             self.message = text
             log.info("Not connected to Pitwall: %s", text)
-            self._changed()
+        self._changed()
+
+    def _on_disconnect(self, peer: Any) -> None:
+        code = peer.close_code
+        if code in REFUSED:
+            self.refused = code
+            log.info("Pitwall closed the connection: %s", code)
+        self._changed()
 
     def _on_connect(self, peer: Any) -> None:
-        self.message = None
+        self.message = self.refused = None
         self._changed()
         # Optional declarations: a core that predates one answers unknown_method (log, go on).
         for method, params, ik in (
@@ -158,85 +161,113 @@ class Recorder:
             except Exception:  # noqa: BLE001
                 log.exception("on_change failed")
 
-    # ---- writing -----------------------------------------------------------------------
-
-    def _write(self, kind: str, params: dict[str, Any], ik: str) -> Any:
-        """One write, sent again with the same key until Pitwall answers or we stop."""
-        while not self._stop.is_set():
-            try:
-                self.client.wait_connected(1.0)
-                return self.client.call(f"pitwall.write.{kind}", params, timeout=30,
-                                        idempotency_key=ik)
-            except (NotConnected, ConnectionLost):
-                continue
-            except RemoteError as exc:
-                if exc.code in ("busy", "timeout", "writer_busy", "shutting_down"):
-                    time.sleep(0.5)          # the key was not consumed: same call again
-                    continue
-                raise                          # bad_request & co: not retryable (section 3.1)
-        return None
-
-    def _announce(self, code: str, params: dict[str, Any]) -> None:
-        """Not idempotent and never queued: an announcement is worth something only now."""
-        try:
-            self.client.call("pitwall.announce", {"code": code, "params": params}, timeout=5)
-        except (NotConnected, ConnectionLost, RemoteError) as exc:
-            log.info("announce %s skipped: %s", code, exc)
+    # ---- status ------------------------------------------------------------------------
 
     def _set(self, **fields: Any) -> None:
         self.status.set({**(self.status.value or {}), **fields})
         self._changed()
 
+    def _outbox_changed(self) -> None:
+        summary = self.outbox.summary()
+        if (self.status.value or {}).get("outbox") != summary:
+            self._set(outbox=summary)
+
+    def _on_result(self, method: str, params: Any, result: Any) -> None:
+        """Pitwall's answers, on the outbox thread: the numbers it decided."""
+        if method.endswith(".pit_exit"):
+            self._set(stint=result["stint"])
+        elif method.endswith(".lap"):
+            self._set(lap=result["lap"])
+
+    # ---- the game ----------------------------------------------------------------------
+
+    def _watch(self) -> None:
+        """Ask the game, at most every 2 s. Nothing else touches it while it is closed."""
+        up = False
+        while not self._stop.is_set():
+            now = self.game.running()
+            if now != up:
+                up = now
+                self._set(game_running=up)               # before the first write, always
+                if up:
+                    self._begin()
+                else:
+                    self._end()
+            if self._stop.wait(self.game_check_s):
+                break
+        self._end()
+
+    def _begin(self) -> None:
+        self._session_stop.clear()
+        self._session = threading.Thread(target=self._run, daemon=True, name="session")
+        self._session.start()
+
+    def _end(self) -> None:
+        self._session_stop.set()
+        if self._session is not None:
+            self._session.join(15)
+        self._session = None
+
     # ---- the session -------------------------------------------------------------------
+
+    def _write(self, kind: str, params: dict[str, Any], ik: str) -> None:
+        """Store a write in the outbox; the outbox sends it, and sends it again until Pitwall
+        answers. A refusal that will not change goes to `rejected/`."""
+        self.outbox.put(f"pitwall.write.{kind}", ik, params)
+
+    def _announce(self, code: str, params: dict[str, Any]) -> None:
+        """Not idempotent and never queued: an announcement is worth something only now."""
+        try:
+            self.client.call("pitwall.announce", {"code": code, "params": params}, timeout=5)
+        except Exception as exc:  # noqa: BLE001 - not connected, silenced, rate limited: skip
+            log.info("announce %s skipped: %s", code, exc)
 
     def _run(self) -> None:
         try:
-            if self._write("catalog", CATALOG, f"{CONNECTOR_ID}/catalog/{sha12(CATALOG)}") is None:
-                return
             self._play()
         except Exception:  # noqa: BLE001 - a bug must reach the log, not die silently
             log.exception("The recorder stopped")
             self._set(error_code="recorder_failed", message="The recorder stopped; see the log")
 
     def _play(self) -> None:
+        self._write("catalog", CATALOG, f"{CONNECTOR_ID}/catalog/{sha12(CATALOG)}")
         key = secrets.token_hex(8)                      # 16 hex digits, new for each session
         clock = datetime.now().astimezone()
-        start = {"session_key": key, "started_at": clock.isoformat(timespec="seconds"),
-                 "session_type": "practice", "car_id": "car_a", "track_id": "ring",
-                 "layout_id": "full"}
-        if self._write("session_start", start, f"{CONNECTOR_ID}/{key}/start") is None:
-            return
-        self._set(game_running=True, phase="garage", session_key=key, stint=1, live=LIVE)
+        self._write("session_start", {"session_key": key, "started_at": _iso(clock),
+                                      "session_type": "practice", "car_id": "car_a",
+                                      "track_id": "ring", "layout_id": "full"},
+                    f"{CONNECTOR_ID}/{key}/start")
+        self._set(phase="garage", session_key=key, stint=1, live=LIVE)
         seqs = {"lap": 0, "pit_exit": 0}
         sim_lap = 0                                     # the lap number the simulator shows
         for kind, lap_type, time_s, valid in SCRIPT:
-            if self._stop.wait(self.lap_period_s):
-                break
+            if self._session_stop.wait(self.lap_period_s):
+                break                                   # the game closed: end the session
             clock += timedelta(seconds=time_s or 30.0)
             seqs[kind] += 1
             seq = seqs[kind]
             if kind == "pit_exit":
-                reply = self._write("pit_exit", {"session_key": key, "seq": seq,
-                                                 "at": clock.isoformat(timespec="seconds"),
-                                                 "fuel_l": 50.0},
-                                    f"{CONNECTOR_ID}/{key}/pit_exit/{seq}")
-                if reply is not None:
-                    self._set(phase="on_track", stint=reply["stint"])
+                self._write("pit_exit", {"session_key": key, "seq": seq, "at": _iso(clock),
+                                         "fuel_l": 50.0},
+                            f"{CONNECTOR_ID}/{key}/pit_exit/{seq}")
+                self._set(phase="on_track")
                 continue
             sim_lap += 1
             params: dict[str, Any] = {"session_key": key, "seq": seq, "lap_type": lap_type,
                                       "valid": valid, "sim_lap": sim_lap, "on_track": True,
-                                      "channels": channels(lap_s=time_s or 60.0)}
+                                      "channels": channels(time_s or 60.0)}
             if time_s is not None:
                 params["time_s"] = time_s               # only when the simulator timed it
-            reply = self._write("lap", params, f"{CONNECTOR_ID}/{key}/lap/{seq}")
-            if reply is None:
-                break
-            self._set(lap=reply["lap"], phase="on_track" if lap_type != "in" else "garage")
+            self._write("lap", params, f"{CONNECTOR_ID}/{key}/lap/{seq}")
+            self._set(phase="on_track" if lap_type != "in" else "garage")
             if time_s is not None and valid:
                 self._announce("lap_done", {"lap": sim_lap, "time": time_s})
-        self._write("session_end", {"session_key": key,
-                                    "ended_at": clock.isoformat(timespec="seconds")},
+        # A real connector also writes the lap in progress here, as an incomplete lap, when
+        # the game closed (docs/connector-protocol.md section 11.4).
+        self._write("session_end", {"session_key": key, "ended_at": _iso(clock)},
                     f"{CONNECTOR_ID}/{key}/end")
-        self._set(game_running=False, phase=None, session_key=None, stint=None, lap=None,
-                  live=None)
+        self._set(phase=None, session_key=None, stint=None, lap=None, live=None)
+
+
+def _iso(moment: datetime) -> str:
+    return moment.isoformat(timespec="seconds")
