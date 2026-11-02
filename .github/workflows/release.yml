@@ -72,12 +72,16 @@ jobs:
         run: uv run pytest -q
       - name: Kit tests
         working-directory: tree
-        run: uv run --no-project --with pytest pytest -q tests
+        run: uv run --no-project --with pytest --with jsonschema pytest -q tests
       - name: JSON files are valid
         working-directory: tree
         run: |
           uv run --no-project python -m json.tool contract.json > /dev/null
           uv run --no-project python -m json.tool docs/write-api.schema.json > /dev/null
+          uv run --no-project python -m json.tool docs/live-frame.schema.json > /dev/null
+          uv run --no-project python -m json.tool docs/control-state.schema.json > /dev/null
+          uv run --no-project python -m json.tool docs/descriptor.schema.json > /dev/null
+          uv run --no-project python -m json.tool docs/live-frame.sample.json > /dev/null
       - name: Documentation check
         working-directory: tree
         run: scripts/check-docs.sh
@@ -88,7 +92,7 @@ jobs:
         run: |
           mkdir assets
           git archive --format=zip --prefix="connector-kit-$VERSION/" \
-            -o "assets/connector-kit-$VERSION.zip" "$SHA" -- README.md LICENSE NOTICE contract.json docs native skeleton checker
+            -o "assets/connector-kit-$VERSION.zip" "$SHA" -- README.md LICENSE NOTICE CHANGELOG.md SECURITY.md contract.json docs native skeleton checker
           scripts/release-sums.sh assets "connector-kit-$VERSION.zip"
           cat assets/SHA256SUMS
           git show "$SHA:CHANGELOG.md" > changelog.md
