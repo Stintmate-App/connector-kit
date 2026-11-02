@@ -88,10 +88,6 @@ then a summary with the `contract_version`, the declared features and what stays
 `M2.runtime`, `M12.findings`, `M15.game`, `M16.cap` and `M17.hold` are manual: they print as
 `MANUAL` and never fail. The features `live_frame`, `capture_target` and `brake_cues` are not checked.
 
-One thing differs from the contract's wording: after the key appears the checker waits up to 30 s
-for the link (the transport re-reads a key that was missing only now and then; the skeleton took up
-to about 20 s), and the evidence line says how long it took.
-
 ## Tests
 
 `uv run --project checker pytest checker/tests -q`. `test_planted_faults.py` plants a fault in a

@@ -81,9 +81,6 @@ MANUAL_TEXT = {
     "M17.hold": "setup holds and releases through the hub when it replaces a running connector",
 }
 
-# The transport re-reads a key that was missing only now and then (observed: up to about 20 s).
-KEY_LINK_S = 30.0
-
 SESSION_IDS = ["M6.recorder", "M8.game", "M10.order", "M10.laps", "M11.channels", "M12.sanity",
                "M13.keys", "M16.logs", "M13.retry", "M13.refused", "M14.outbox"]
 
@@ -366,12 +363,14 @@ def key_checks(ctx: Ctx) -> None:
     write_key(ctx)
     ctx.scratch["key_added_at"] = time.monotonic()
     if rep.status("M7.key") == "PENDING":
-        if ctx.core.wait(lambda: ctx.core.linked, KEY_LINK_S):
-            rep.passed("M7.key", "alive without the key, did not create it, linked "
-                                 f"{time.monotonic() - ctx.scratch['key_added_at']:.1f} s after "
-                                 "it appeared")
+        # Managed, the connector starts its recorder when the hub says so: attach does that.
+        if not boot(ctx):
+            rep.failed("M7.key", "did not start after the key appeared")
+        elif ctx.core.wait(lambda: ctx.core.linked, 15.0):
+            rep.passed("M7.key", "alive without the key, did not create it, linked within 15 s "
+                                 "of the key appearing")
         else:
-            rep.failed("M7.key", f"not linked within {KEY_LINK_S:.0f} s of the key appearing")
+            rep.failed("M7.key", "not linked within 15 s of the key appearing")
 
 
 @group("start")
