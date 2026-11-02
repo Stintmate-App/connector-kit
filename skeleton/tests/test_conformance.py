@@ -301,7 +301,7 @@ def test_install_writes_the_descriptor_the_hub_reads(tmp_path):
 def test_it_imports_no_stintmate_app():
     banned = re.compile(r"^\s*(?:from|import)\s+(stintmate_hub|pitwall|ams2_connector|"
                         r"stintmate_voice)\b", re.M)
-    for path in list((ROOT / "src").rglob("*.py")) + list((ROOT / "tests").rglob("*.py")):
+    for path in [p for sub in ("src", "tests", "examples") for p in (ROOT / sub).rglob("*.py")]:
         assert not banned.search(path.read_text(encoding="utf-8")), path
     deps = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     # only stintmate-ipc, from a path: the release wheel in vendor/; never a path into a
