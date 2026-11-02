@@ -163,7 +163,7 @@ def test_the_contract_json_carries_the_new_keys():
     assert vocab["position_channels"] == ["x", "z"]
     assert {"stopped", "starting", "loading", "connecting", "waiting_models", "waiting",
             "recording", "running"} == set(vocab["service_states"])
-    assert len(vocab["features"]) == len(set(vocab["features"])) == 21
+    assert len(vocab["features"]) == len(set(vocab["features"])) == 20
     assert not {"budgets", "write_errors", "contract_version"} & set(contract["limits"])
 
 
