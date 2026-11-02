@@ -1,4 +1,10 @@
 {
+  "budgets": {
+    "game_check_min_interval_s": 2,
+    "idle_cpu_percent_of_core": 0.5,
+    "idle_sample_s": 60
+  },
+  "contract_version": 2,
   "error_codes": [
     "bad_request",
     "blank_frame",
@@ -206,6 +212,34 @@
       "y",
       "z"
     ],
+    "control_pitwall": [
+      "connected",
+      "waiting",
+      "refused"
+    ],
+    "features": [
+      "live_frame",
+      "lap_status",
+      "capture_target",
+      "brake_cues",
+      "setups",
+      "fuel",
+      "sectors",
+      "conditions",
+      "rivals",
+      "wheel_channels",
+      "off_track",
+      "announcements",
+      "spotter",
+      "guidance",
+      "actions",
+      "window",
+      "notices",
+      "translated_texts",
+      "remembered_services",
+      "options",
+      "official_install"
+    ],
     "groups": [
       "laps",
       "fuel",
@@ -244,6 +278,14 @@
       "in",
       "flying"
     ],
+    "minimum_channels": [
+      "t",
+      "dist",
+      "speed",
+      "throttle",
+      "brake",
+      "g_lat"
+    ],
     "phases": [
       "menus",
       "garage",
@@ -257,12 +299,26 @@
       "3": "driving out of the pits",
       "4": "in the garage"
     },
+    "position_channels": [
+      "x",
+      "z"
+    ],
     "priorities": [
       "spotter",
       "critical",
       "high",
       "normal",
       "low"
+    ],
+    "service_states": [
+      "stopped",
+      "starting",
+      "loading",
+      "connecting",
+      "waiting_models",
+      "waiting",
+      "recording",
+      "running"
     ],
     "session_types": [
       "practice",
@@ -294,6 +350,16 @@
     "time_sources": [
       "official",
       "measured"
+    ]
+  },
+  "write_errors": {
+    "non_retryable": [
+      "bad_request",
+      "session_closed",
+      "unknown_session",
+      "too_large",
+      "unknown_method",
+      "version_unsupported"
     ]
   }
 }
