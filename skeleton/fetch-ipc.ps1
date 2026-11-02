@@ -35,13 +35,22 @@ function Get-ExpectedHash([string]$sumsFile, [string]$name) {
     return $null
 }
 
+# The hash comes from .NET directly, so the script does not depend on a PowerShell module that
+# may not load under every parent shell (Windows PowerShell started from PowerShell 7).
+function Get-Sha256([string]$path) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [System.IO.File]::OpenRead($path)
+    try { return ([System.BitConverter]::ToString($sha.ComputeHash($stream)) -replace "-", "").ToLowerInvariant() }
+    finally { $stream.Dispose(); $sha.Dispose() }
+}
+
 function Test-Verified([string]$dir) {
     $sumsFile = Join-Path $dir $sums
     $path = Join-Path $dir $wheel
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
     if (-not (Test-Path -LiteralPath $sumsFile -PathType Leaf)) { return $false }
     $want = Get-ExpectedHash $sumsFile $wheel
-    if (-not $want -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $want) {
+    if (-not $want -or (Get-Sha256 $path) -ne $want) {
         return $false
     }
     return $true
@@ -67,7 +76,7 @@ try {
     }
     $want = Get-ExpectedHash (Join-Path $vendor $sums) $wheel
     if (-not $want) { throw "$sums has no entry for $wheel" }
-    $got = (Get-FileHash -LiteralPath (Join-Path $vendor $wheel) -Algorithm SHA256).Hash.ToLowerInvariant()
+    $got = Get-Sha256 (Join-Path $vendor $wheel)
     if ($got -ne $want) { throw "SHA-256 mismatch for ${wheel}: expected $want, got $got" }
 } catch {
     foreach ($name in @($wheel, $sums)) {
