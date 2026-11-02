@@ -136,3 +136,30 @@ def test_channels_decode_both_forms():
     assert decode_channel(raw) == [1.0, 2.5] and decode_channel([1, 2]) == [1.0, 2.0]
     with pytest.raises(ValueError):
         decode_channel({"encoding": "i16", "data": b"\x00\x00"})
+
+
+def test_a_two_service_connector_is_seen_as_the_union_of_its_connections():
+    from types import SimpleNamespace
+
+    def peer(methods, channels, answer):
+        return SimpleNamespace(decl=SimpleNamespace(methods=methods, channels=channels),
+                               call=lambda name, params, timeout=0: answer)
+
+    core = FakeCore("unused", b"k" * 32, json.loads(
+        (KIT / "docs" / "write-api.schema.json").read_text(encoding="utf-8")))
+    assert core.offered() is None
+    core.peers.extend([peer(["connector.live_frame"], [], "frame"),
+                       peer(["connector.action"], ["connector.telemetry"], "action")])
+    assert core.offered() == ({"connector.live_frame", "connector.action"},
+                              {"connector.telemetry"})
+    assert core.call("connector.live_frame") == "frame"
+    assert core.call("connector.action") == "action"
+
+
+def test_layouts_come_from_every_catalog_the_run_saw(tmp_path):
+    from connector_check import session
+    from connector_check.fakecore import Entry
+    entries = [Entry(0, 0.0, "pitwall.write.catalog", "demo/c", CATALOG, replayed=True),
+               Entry(1, 0.0, "pitwall.write.catalog", "demo/d", CATALOG, error="busy")]
+    assert session.layouts(entries) == {("ring", "full"): 1000.0}
+    assert session.layouts(entries[1:]) == {}
