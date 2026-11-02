@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-11-03)
 
 - New [`docs/levels.md`](docs/levels.md): what a connector must do (minimum), what it may add (parity) and where it may extend the contract (beyond), what each analysis needs, and how the contract versions.
 - The link rule: a connector connects when its recorder starts, whatever the game does, and stays connected. Pitwall listens to every connector; the one whose game runs is the active one. The rule is in `levels.md`, the protocol and the connector guide.
