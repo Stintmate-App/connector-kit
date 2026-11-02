@@ -55,6 +55,13 @@ control endpoint. It lives in
   re-subscribes after every reconnect. In the Python package, `Client.wait_connected(timeout)`
   raises `NotConnected` when the time is up, and its `__cause__` is the last connection error
   (for example `PipeNotFound` while nobody serves the pipe).
+- **The link rule.**
+  > Connect to Pitwall when your recorder starts, whatever the game does, and stay connected. Never
+  > disconnect on purpose while your recorder runs. Pitwall listens to every connector. One is
+  > **active**: the first whose `game_running` is true, until that game closes. The active connector
+  > drives live state, radio calls, brake cues, captures and actions. The others still store their
+  > writes, and their events and announcements are not published. Set `game_running` as soon as the
+  > process exists and before the first write of a session.
 - **Being found by the hub.** This document covers the Pitwall side only. For the Stintmate hub
   to list and manage your connector, write the descriptor
   `%LOCALAPPDATA%\Stintmate\connectors\<id>.json` when you install ([descriptor.md](descriptor.md);

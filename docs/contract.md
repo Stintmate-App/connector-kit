@@ -116,6 +116,25 @@ A connector adds `connector: {id, name, version, sim, sim_name}`, `game_running:
 `pitwall: "connected"|"waiting"|"refused"` (from its services), `outbox: {pending: int,
 oldest_at: str \| null}` and `start_with_app: [str]` (used only when the connector runs alone).
 
+| `control.state.pitwall` | Meaning | Hub |
+|---|---|---|
+| `connected` | At least one running service has its connection open | nothing |
+| `waiting` | No connection now and none refused: Pitwall absent, reconnecting, key missing, or every service off | "cannot reach Pitwall" only when the core is down and a service runs |
+| `refused` | The last connection was closed for a reason a retry will not fix: `unauthorized`, `bad_request`, `busy`, or `connector_busy` from an older Pitwall | held error notice |
+
+| `services[].state` | Meaning | Hub |
+|---|---|---|
+| `stopped` | Not running | |
+| `starting`, `loading`, `connecting`, `waiting_models` | Getting ready | shown amber while the service's `level` is `ok` |
+| `waiting` | Recorder running, no game or no session | shown amber while the service's `level` is `ok` |
+| `recording` | A session is being written | shown as recording while `level` is `ok` |
+| `running` | Any other service that runs | |
+| others | Legal: shown by `label` | as `level` |
+
+The service that records has the id `recorder`; further services have other ids. `ownership`,
+`forced_stop` and `restart_pending` are informational: the hub reads none of them. The first part
+of a service's `label`, up to the first `" · "`, is the text its chip shows.
+
 ### 3.3 Buttons (optional)
 
 A control app that owns a wheel, controller or keyboard button the user assigns serves
@@ -354,10 +373,11 @@ Every write (4.2) goes through the connector's **outbox**, a folder private to t
    `{method, v, ik, p}` (atomic: temporary file, then rename). One file write per lap and per
    session message: the file is written by the background writer, never by the sampling loop.
 2. Sent in sequence order, **one at a time** (ordered methods; each waits for its answer).
-3. `ok`: the file is deleted. A non-retryable error (`bad_request`, `session_closed`,
-   `unknown_session`): moved to `outbox\rejected\` and logged. A retryable one (`busy`,
-   `writer_busy`, `timeout`, `disconnected`, `shutting_down`): kept; retried after
-   `retry_ms` or the reconnect, same key.
+3. `ok`: the file is deleted. One of the six non-retryable codes (`bad_request`,
+   `session_closed`, `unknown_session`, `too_large`, `unknown_method`, `version_unsupported`):
+   moved to `outbox\rejected\` and logged. **Anything else** keeps the file and retries with the
+   same key after `retry_ms`, 1 s by default and at most 10 s. For example `connector_busy`,
+   `unavailable`, `busy`, `writer_busy`, `timeout`, `shutting_down` and a lost connection.
 4. While Pitwall is down the recorder keeps recording into the outbox; after the reconnect it
    replays oldest first, before any new write. Pitwall's idempotency makes a write sent twice
    (answer lost) stored once.

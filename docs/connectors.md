@@ -33,8 +33,12 @@ control endpoint.
 Before writing code, find (and write down in the connector's own docs, with how you checked):
 
 1. **How to read it** (shared memory, UDP, an SDK, log files) and at what rate. Live
-   connectors must cost the simulator nothing noticeable: low priority, sleep between samples,
-   buffer in memory, send once per lap.
+   connectors must cost the simulator nothing noticeable: sleep between samples, buffer in
+   memory, send once per lap, and keep the idle budget ([levels.md](levels.md) section 4):
+
+   > With the game closed and the connection open, a connector uses at most 0.5 % of one core,
+   > measured over 60 s, all its processes together. It reads nothing from the game's data channel:
+   > only a check of the game's process, at most every 2 s. The process runs below normal priority.
 2. **Whether it runs**: a sure sign (its process), not only that its data channel exists (other
    programs may keep it open after the game closed). This is the connector's job; Pitwall
    believes `game_running`.
@@ -109,6 +113,15 @@ opens its own connection to the core's endpoint `pitwall` with the `stintmate-ip
 any implementation of the protocol) and a distinct `service`; the connector is connected while
 any of them is. The package's client connects in the background, retries with the protocol's
 backoff and re-subscribes after every reconnect.
+
+**The link rule** ([levels.md](levels.md) section 3):
+
+> Connect to Pitwall when your recorder starts, whatever the game does, and stay connected. Never
+> disconnect on purpose while your recorder runs. Pitwall listens to every connector. One is
+> **active**: the first whose `game_running` is true, until that game closes. The active connector
+> drives live state, radio calls, brake cues, captures and actions. The others still store their
+> writes, and their events and announcements are not published. Set `game_running` as soon as the
+> process exists and before the first write of a session.
 
 **Hello.** `peer.app` `connector-<id>`, `peer.process` the service, and `peer.meta`
 `{connector_id, connector_name, sim, sim_name, service}`. A `bye` with `connector_busy`

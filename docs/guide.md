@@ -93,6 +93,16 @@ Behaviour expected:
    the hub closes. It starts `launcher` with the launcher's own folder as the working
    directory; find your files from your executable's path, not from the working directory.
 
+**Developing next to a real Stintmate.** When the environment variable `STINTMATE_DEV_INSTANCE`
+is set to a tag, every process of your connector separates itself from the real applications.
+The tag is normalised to lowercase `a-z`, `0-9` and `-` and cut to 24 characters. Every pipe your
+connector builds then uses the user part `<user>-<tag>` instead of `<user>` (with the IPC
+package: `pipe_path(app, user=f"{pipe_user()}-{tag}")`), and its mutex name gets `.<tag>`
+appended. Without it, your test connector and an installed Stintmate on the same machine share
+a pipe name (the endpoint name has no other override) and a mutex name, so one of them is
+refused or adopted by the other. The variable is a rule for your connector: the IPC package
+does not read it.
+
 ## 4. The workspace and the read-only key
 
 Find the workspace from `--workspace` first, else `STINTMATE_WORKSPACE`, else the `workspace`

@@ -51,6 +51,8 @@ looks at files named `*.json`, so the temporary file of an atomic write is never
 | `services` | array, required | The connector's services in display order: `id` (what `control.service.start`/`stop` take; required) and `name`. The live state of each is in the endpoint's `control.state`. |
 | `logs` | array of strings, optional | Log files (plain names, no path) in **`<workspace>\connectors\<id>\`**. The hub copies the last 512 KB of each, anonymised, into the problem report the user previews and saves. |
 | `uninstall` | array of strings, optional | The command line (argv) that removes this install with no window and no prompts; the first element must be an absolute path, else it is ignored. Another build's setup runs it before installing, and the hub's Settings runs it for Uninstall. Leave it out when nothing installed the connector (a development checkout). |
+| `window` | bool, optional | `true` when the control app serves `control.show` and `control.hide`. The hub does not read it at this version. |
+| `features` | array of strings, optional | What the connector declares it offers, from the `features` list of `vocabularies` in [`contract.json`](../contract.json): `live_frame`, `lap_status`, `capture_target`, `brake_cues`, `setups`, `fuel`, `sectors`, `conditions`, `rivals`, `wheel_channels`, `off_track`, `announcements`, `spotter`, `guidance`, `actions`, `window`, `notices`, `translated_texts`, `remembered_services`, `options`, `official_install` ([levels.md](levels.md) section 6 says what each one means). The hub does not read the key, so it ignores any name; the kit's checker flags a name that is not in the list. It is a declaration of the developer, separate from the `features` of an entry of the official catalog. |
 | `written_at`, `written_by` | string, optional | When and by what the file was written. |
 
 A broken descriptor (missing required field, wrong types) is listed with its error and never
@@ -87,7 +89,8 @@ launched.
   `control.managed`; ignores unknown keys; and never writes the file.
 - Paths inside (`launcher`) are absolute; file names (`logs`) are relative to
   `<workspace>\connectors\<id>\`.
-- Additive changes (new optional keys) keep `schema` 1; a changed meaning bumps it.
+- Additive changes (new optional keys) keep `schema` 1; a changed meaning bumps it. `window` and
+  `features` are such keys. A [JSON Schema](descriptor.schema.json) of the descriptor is in the kit.
 
 ## Languages (`locales\`) and the language setting
 
