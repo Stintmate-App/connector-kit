@@ -1,0 +1,28 @@
+[project]
+name = "connector-check"
+version = "0.2.0"
+description = "Checks a Stintmate connector against the minimum level of the kit's contract"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+dependencies = [
+    "stintmate-ipc",
+    "jsonschema>=4",
+    "psutil>=5.9",
+]
+
+[project.scripts]
+connector-check = "connector_check.cli:main"
+
+[tool.uv.sources]
+# The Python binding of the transport: the wheel that skeleton/fetch-ipc.ps1 puts in vendor/.
+stintmate-ipc = { path = "../skeleton/vendor/stintmate_ipc-0.3.3-py3-none-win_amd64.whl" }
+
+[build-system]
+requires = ["uv_build>=0.9,<0.13"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
