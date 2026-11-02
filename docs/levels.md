@@ -38,7 +38,7 @@ and supervises whatever its [descriptor](descriptor.md) describes. The kit's che
 | M16 | Logs in `<workspace>\connectors\<id>\`, named in the descriptor's `logs` and capped in size. | A problem report has nothing to attach. | [descriptor.md](descriptor.md) |
 | M17 | An `uninstall` command in the descriptor when anything installed the connector, and the hold of [connector-protocol.md](connector-protocol.md) section 1.2 when its setup replaces a running one. | Uninstall and update cannot be automatic. | [descriptor.md](descriptor.md) |
 | M18 | No text composed in a language the connector does not have: service names and labels come from its own catalog. | Texts reach the user in the wrong language. | [contract.md](contract.md) section 3.2, [catalogs.md](catalogs.md) |
-| M19 | While developing, set `STINTMATE_DEV_INSTANCE=<tag>` for every process of the connector ([guide.md](guide.md) section 3 says how). | Your test connector and a real Stintmate on the same machine share a pipe name and a mutex name, so one of them is refused or adopted. | [guide.md](guide.md) section 3 |
+| M19 | Honour `STINTMATE_DEV_INSTANCE=<tag>` in every process: pipes and mutex take the tag ([guide.md](guide.md) section 3 says how). | A test run and a real Stintmate on the same machine share a pipe name and a mutex name, so one of them is refused or adopted, and `connector-check` cannot run beside the real apps. | [guide.md](guide.md) section 3 |
 
 `length_m` is required: the layout length is what turns a lap's distance into a fraction of
 the lap in the analysis and the live state. The outbox (M14) is required of every connector.

@@ -183,13 +183,13 @@ raw bytes); arrays of numbers stay accepted. The write API's `hello` is built fr
 
 | Method | Params (besides the write API fields) | Result | Idempotency key `ik` (convention) |
 |---|---|---|---|
-| `pitwall.write.catalog` v1 | none | `{ok, type}` | `<id>/catalog/<sha256-12 of params>` |
+| `pitwall.write.catalog` v1 | none | `{ok, type, classes, cars, tracks, layouts}` (counts) | `<id>/catalog/<sha256-12 of params>` |
 | `pitwall.write.session_start` v1 | `session_key: str` (16 hex digits, random per session, chosen by the connector) | `{ok, type, session_id}` | `<id>/<session_key>/start` |
-| `pitwall.write.setup` v1 | `session_key`, `seq: int` (1.. per session) | `{ok, type}` | `<id>/<session_key>/setup/<seq>` |
+| `pitwall.write.setup` v1 | `session_key`, `seq: int` (1.. per session) | `{ok, type, session_id, setup, stint, stored}` | `<id>/<session_key>/setup/<seq>` |
 | `pitwall.write.lap` v1 | `session_key`, `seq: int` (the connector's lap sequence in the session, 1..) | `{ok, type, session_id, lap, lap_id, stint}` | `<id>/<session_key>/lap/<seq>` |
-| `pitwall.write.participant_laps` v1 | `session_key`, `seq: int` | `{ok, type}` | `<id>/<session_key>/participants/<seq>` |
+| `pitwall.write.participant_laps` v1 | `session_key`, `seq: int` | `{ok, type, session_id, rows, stored}` | `<id>/<session_key>/participants/<seq>` |
 | `pitwall.write.pit_exit` v1 | `session_key`, `seq: int` (1.. per session) | `{ok, type, session_id, stint, new_stint}` | `<id>/<session_key>/pit_exit/<seq>` |
-| `pitwall.write.session_end` v1 | `session_key` | `{ok, type, laps, discarded}` | `<id>/<session_key>/end` |
+| `pitwall.write.session_end` v1 | `session_key` | `{ok, type, session_id, stored, laps, discarded}` | `<id>/<session_key>/end` |
 
 - Flags: all `ordered: true`, `idempotent: true`. Deadline 30 s. A lap (about 1.2 MB as `bin`)
   is chunked by the library.
