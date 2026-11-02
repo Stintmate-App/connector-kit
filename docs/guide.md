@@ -52,7 +52,7 @@ of another app except the language setting (`hub\settings.json`).
 
 `%LOCALAPPDATA%\Stintmate\connectors\<id>.json` (schema 1) is the only thing the hub needs to
 find you; write it when you install and remove it when you uninstall. Your data and logs stay in
-`<workspace>\connectors\<id>\`. The field table and rules are in
+`<workspace>\connectors\<id>\`, which you create yourself the first time you need it: nothing in Stintmate creates it for a connector. Settings of your own go in `<workspace>\connectors\<id>\settings.json`: read it at start, keep the defaults in your code, ignore keys you do not know; the hub does not edit it. The field table and rules are in
 [descriptor.md](descriptor.md); the points that trip authors:
 
 - `id` equals the file name without `.json` (else the file is ignored); `launcher` is an
@@ -77,8 +77,7 @@ The hub runs `launcher` + `args` + the trailing options
 --workspace <workspace> --managed --parent-pid <hub pid>
 ```
 
-Your launcher must **tolerate these options** (parse them or ignore them; `--allow-synced`
-is also appended after `--workspace` when the workspace folder is synced and that was allowed).
+Your launcher must **tolerate these options** (parse them or ignore them). `--allow-synced` is also appended after `--workspace` when the workspace folder is synced and the user accepted that; without it, a connector may refuse a synced folder.
 Behaviour expected:
 
 1. Hold the descriptor's `mutex` for as long as the control app runs; a second launch must not
@@ -92,6 +91,21 @@ Behaviour expected:
 4. The hub starts your process in a new process group, not in a job, so it is not killed when
    the hub closes. It starts `launcher` with the launcher's own folder as the working
    directory; find your files from your executable's path, not from the working directory.
+
+5. The hub watches your launch with these timings (`supervisor.py` constants of the hub): a
+   process that has not served its endpoint 60 s after launch is shown with a warning; a process
+   that stops is started again after 1, 2, 4, 8, 16 and then 30 s; after 5 stops within 600 s
+   the hub stops trying and shows the connector as failed.
+
+**Developing next to a real Stintmate.** When the environment variable `STINTMATE_DEV_INSTANCE`
+is set to a tag, every process of your connector separates itself from the real applications.
+The tag is normalised to lowercase `a-z`, `0-9` and `-` and cut to 24 characters. Every pipe your
+connector builds then uses the user part `<user>-<tag>` instead of `<user>` (with the IPC
+package: `pipe_path(app, user=f"{pipe_user()}-{tag}")`), and its mutex name gets `.<tag>`
+appended. Without it, your test connector and an installed Stintmate on the same machine share
+a pipe name (the endpoint name has no other override) and a mutex name, so one of them is
+refused or adopted by the other. The variable is a rule for your connector: the IPC package
+does not read it.
 
 ## 4. The workspace and the read-only key
 
@@ -120,8 +134,9 @@ treats each optional one as "not there": a connector that does not serve `contro
 is skipped when the hub translates catalogs, and one that answers `unknown_method` to
 `control.buttons.*` owns no button. The contract is that no notices or activity means nothing in
 the notice bar, a missing `control.catalog.get` means the window stays in your language, and
-nothing is shown as an error or retried. Anything required and missing makes the connector show
-as not working.
+nothing is shown as an error or retried. The hub observes `control.state`: without it the connector shows as not working. The other
+required methods are called when the user or the hub's life cycle needs them, and `connector-check`
+([levels.md](levels.md) section 9) verifies the whole profile.
 
 ## 6. Connecting to Pitwall
 
@@ -129,8 +144,8 @@ Your services connect to `pitwall` with the `stintmate-ipc` package (it reconnec
 protocol backoff), say hello as `connector-<id>`, declare `connector.status` and write sessions
 and laps. Optional live functions (`connector.live_frame`, `connector.capture_target`,
 `connector.telemetry`) each enable a Pitwall function. Everything is in
-[connector-protocol.md](connector-protocol.md); laps finished while Pitwall is down are yours
-to keep (the outbox) or lose, logged.
+[connector-protocol.md](connector-protocol.md); laps finished while Pitwall is down are kept in
+your outbox and sent when it is back ([contract.md section 5.4](contract.md)).
 
 ## 7. Catalogs and language
 
@@ -187,6 +202,14 @@ data.
 - [ ] Reads the key, never writes it; retries while workspace, key or Pitwall are missing.
 - [ ] Pitwall side per connector-protocol.md (hello, `connector.status`, writes).
 - [ ] Optional: catalogs declared in your own language; the hub translates them.
+- [ ] `connector-check` ([levels.md](levels.md) section 9) reports no failure at the level you declare.
+
+## 11. Licences
+
+This kit is under the Apache License 2.0 (`LICENSE`, with `NOTICE`). Code you copy from it, the
+skeleton for example, keeps those notices. When you bundle the `stintmate-ipc` wheel or the
+native DLL with your connector, ship the licence files that come with them. The terms of your
+own connector are yours to choose. This is a pointer, not legal advice.
 
 ## Becoming an official connector
 
@@ -200,6 +223,20 @@ status is the backup); it writes the descriptor ([descriptor.md](descriptor.md))
 replaces a running connector it asks the hub to hold it (protocol section 1.2) instead of
 stopping it by itself. The AMS2 connector's installer is the worked example. Nothing else
 changes for a connector that is installed by hand.
+
+- **The catalog entry** has `id` (the descriptor's file name), names, `sim`, `version`, the
+  `installer` URL, `size`, `sha256`, and optionally `min_stintmate` (a Stintmate version: an
+  entry that asks for a newer one than the running Stintmate is listed but not offered),
+  `features` and `notes_url`. These `features` belong to the catalog entry; the descriptor's
+  `features` are a different list ([descriptor.md](descriptor.md)).
+- **The last line's `reason`** (when `ok` is false): the hub has a text of its own for
+  `connector_running`, `replace_failed`, `disk` and `register_failed`; with `register_failed`
+  and `installed` false it says the registration could not be read. Any other reason is shown
+  as you wrote it, with the path of the setup log; a missing one shows as `unknown`. Without a
+  last line the hub falls back to the exit status.
+- **Start menu.** The AMS2 setup adds a shortcut that never starts the connector by itself,
+  because it would run unmanaged next to the instance Stintmate starts: it opens Stintmate
+  instead. Do the same.
 
 ## The skeleton as the smallest example
 
@@ -236,6 +273,21 @@ Template:
 
 ## Access
 How the data is read (shared memory, UDP, plugin), versions tested, update rate, units.
+
+## Signs
+Flags, penalties and race states: the field that carries each and its values.
+
+## Sectors
+Whether sector times exist, how many sectors, when they are final.
+
+## Setup
+What the game exposes of the car setup, and when it can be read.
+
+## Rivals
+What is known of the other cars: positions, laps, pit state, names.
+
+## Weather
+Which conditions exist and on what scale (rain, temperatures, wind).
 
 ## Laps
 | Experiment | Fields read | Values observed |

@@ -19,11 +19,11 @@ Licensed under the Apache License 2.0 (see `LICENSE` and `NOTICE`).
 | `docs/connectors.md` | How Pitwall treats connectors |
 | `docs/contract.md` | The parts of the IPC contract a connector uses |
 | `docs/descriptor.md` | The connector descriptor |
-| `docs/catalogs.md` | The announcement and guidance catalogs |
+| `docs/catalogs.md` | The announcement catalogs |
 | `docs/data-model.md` | The data model a connector writes into |
 | `docs/write-api.md`, `docs/write-api.schema.json` | The write API and its JSON schema |
 | `docs/events.md` | The event feed |
-| `contract.json` | The connector-facing names, codes, vocabularies and limits, machine readable (in the repository; the release zip does not carry it) |
+| `contract.json` | The connector-facing names, codes, vocabularies and limits, machine readable (also in the release zip) |
 | `native/` | For a connector in any other language: where the C header and the native DLL come from (the stintmate-ipc release) |
 | `skeleton/` | The smallest working connector (a fake simulator that plays one synthetic session through the real contract): copy it, rename it, replace the fake recorder with the reading of your game. Python, an example to read and copy; its README is the step by step. `fetch-ipc.ps1` downloads the `stintmate-ipc` wheel (the Python binding, with the native DLL; an asset of the stintmate-ipc-python release) into `vendor/`; `install.ps1` registers it, `tests/test_conformance.py` checks it |
 
@@ -53,10 +53,11 @@ installed on Windows. The installation and the hub's first run create the user's
 conformance check run without it (they use a fake Pitwall); the hand test in `skeleton/README.md`
 and steps 4 and 6 of `docs/connectors.md` need an installed Stintmate with a workspace.
 
-## Installed with Stintmate
+## Where this kit is read
 
-Stintmate installs a copy of this kit in the user's work folder, under `connector-kit/`. Read the
-files there, never edit them; work in a copy, for example `dev/connector-<sim>/`.
+Stintmate's developer session downloads the release of this kit that matches the installed
+Stintmate into the user's work folder. Read the files there, never edit them; work in a copy,
+for example `dev/connector-<sim>/`.
 
 ## Contributing
 

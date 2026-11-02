@@ -1,7 +1,7 @@
 # Pitwall's channels (what pitwall-core publishes)
 
 What Pitwall stores and what its connector says, published by **pitwall-core** on the endpoint
-`pitwall` of Stintmate IPC v2. The normative list is the contract, [contract.md section 4.7](contract.md);
+`pitwall` of Stintmate IPC v2. The normative list is the contract, [contract.md section 4.5](contract.md);
 this page is the field reference for the channels a connector's author sees: the ones that
 report the connector's own writes and status. Pitwall does not know who subscribes: a voice
 app can call each lap and speak the announcements, the hub shows the recording in its tray,
@@ -29,13 +29,13 @@ shared code, no files).
 The core and the connected connector (also the result of `pitwall.connectors.get`):
 `{core: {pid, version, run, started_at, workspace, data_dir}, connector: {id, name, version,
 sim, sim_name, connected_at, functions, services: [{service, pid, connected_at, status}],
-recording} | null, refused: [{app, sim?, at}]}`. `functions` are the names its connections
+recording} | null, connectors: [entry, ...], active: str | null, refused: [{app, sim?, at, code}]}`. `functions` are the names its connections
 declare (`connector.live_frame`, `connector.capture_target`, `connector.telemetry`,
 `connector.status`); `status` is each service's last `connector.status`
 ([connector-protocol.md 2.1](connector-protocol.md#21-connectorstatus-state)); `recording` is
-the `pitwall.recording` value; `refused` the last 5 connections refused (another connector, a
-bad hello). `data_dir` (the core's data folder) and `connector.recording` are Pitwall's
-optional additions to the contract's payload.
+the `pitwall.recording` value; `refused` the last 5 connections refused (a second connection of a service, a
+sim mismatch, a bad hello). `data_dir` (the core's data folder) and `connector.recording` are Pitwall's
+optional additions to the contract's payload. `connectors` lists every linked connector in connection order, each entry shaped like `connector` plus `game_running` and `active`; `active` is the id of the active connector or null; `connector` is the entry of the one Pitwall follows (the active one, else the last active one still linked, else the first linked), null only with nothing linked.
 
 ### `pitwall.recording`
 

@@ -6,7 +6,7 @@ transport: handshake, methods, state channels, events, streams, flags and the pr
 codes. This page is the application layer a connector meets on top of it: the names, params,
 results and application error codes of the connector's two connections, to Pitwall and to the
 managing app. How to use them step by step is in the [connector protocol](connector-protocol.md);
-the machine-readable names are in [`contract.json`](../contract.json) (in the repository; the release zip does not carry it).
+the machine-readable names are in [`contract.json`](../contract.json) (also in the release zip).
 
 A connector has two sides:
 
@@ -30,7 +30,7 @@ connector sends or receives:
 | `not_configured` | A setting the user has not made yet; `msg` says which and where. | after the user acts |
 | `connector_disconnected` | Pitwall has no connector connected. | later |
 | `not_implemented_by_connector` | The connected connector does not declare that method or channel; `details` `{connector, sim, sim_name, method}`. | no |
-| `connector_busy` | Another connector id is connected to Pitwall (in `bye`, see 4.1). | 10 s |
+| `connector_busy` | Sent only by a Pitwall older than contract 2 (in `bye` or as a write's answer, see 4.1), while another connector id was connected. | 10 s, like any retryable code |
 | `writer_busy` | Pitwall's database is held by another writer (an import); nothing stored. **Does not consume the idempotency key.** | `retry_ms` |
 | `engineer_only` | The method is for the engineer's tool server; another peer called it. | no |
 | `unknown_action` | The connected connector did not declare that action code (`details` `{connector, codes}`); also what a connector answers for a code it no longer serves. | no |
@@ -116,6 +116,25 @@ A connector adds `connector: {id, name, version, sim, sim_name}`, `game_running:
 `pitwall: "connected"|"waiting"|"refused"` (from its services), `outbox: {pending: int,
 oldest_at: str \| null}` and `start_with_app: [str]` (used only when the connector runs alone).
 
+| `control.state.pitwall` | Meaning | Hub |
+|---|---|---|
+| `connected` | At least one running service has its connection open | nothing |
+| `waiting` | No connection now and none refused: Pitwall absent, reconnecting, key missing, or every service off | "cannot reach Pitwall" only when the core is down and a service runs |
+| `refused` | The last connection was closed for a reason a retry will not fix: `unauthorized`, `bad_request`, `busy`, or `connector_busy` from an older Pitwall | held error notice |
+
+| `services[].state` | Meaning | Hub |
+|---|---|---|
+| `stopped` | Not running | |
+| `starting`, `loading`, `connecting`, `waiting_models` | Getting ready | shown amber while the service's `level` is `ok` |
+| `waiting` | Recorder running, no game or no session | shown amber while the service's `level` is `ok` |
+| `recording` | A session is being written | shown as recording while `level` is `ok` |
+| `running` | Any other service that runs | |
+| others | Legal: shown by `label` | as `level` |
+
+The service that records has the id `recorder`; further services have other ids. `ownership`,
+`forced_stop` and `restart_pending` are informational: the hub reads none of them. The first part
+of a service's `label`, up to the first `" · "`, is the text its chip shows.
+
 ### 3.3 Buttons (optional)
 
 A control app that owns a wheel, controller or keyboard button the user assigns serves
@@ -143,13 +162,17 @@ Served by Pitwall's core, the only writer of the database. Heartbeat 5000 ms.
 |---|---|---|---|
 | a connector process | `connector-<id>` | the service name | REQUIRED `{connector_id: str, connector_name: str, sim: str, sim_name: str, service: str}` (`connector_id` = `<id>`; `sim` `^[a-z0-9_-]{1,32}$`) |
 
-The **connector registry**: one connector id at a time (a connection of another `connector-*`
-app while one is connected gets `bye` `connector_busy`, message naming the connected one; wait
-10 s before retrying), one connection per service, every connection of a connector names the
-same `sim`. A connector is **connected** while any of its connections is open; its
-**functions** are the union of what its connections declare (`connector.live_frame`,
-`connector.capture_target`, `connector.telemetry`). Liveness is the connection (no status
-heartbeat).
+The **connector registry**: every connector id may be linked at once, one connection per
+service, every connection of a connector names the same `sim` (a second connection of a service
+gets `bye` `busy`, a different `sim` gets `bad_request`). A connector is **linked** while any of
+its connections is open; its **functions** are the union of what its connections declare
+(`connector.live_frame`, `connector.capture_target`, `connector.telemetry`). Liveness is the
+connection (no status heartbeat). One linked connector is **active**: the first whose
+`game_running` is true, until that game closes ([levels.md](levels.md) section 3). A write never
+makes a connector active. Single-connector answers (live state, captures, actions) follow the
+active connector, else the last one that was active and is still linked, else the first linked.
+A Pitwall older than contract 2 serves one connector id at a time and closes the connection of a
+second one with `bye` `connector_busy`; the current one never sends that code.
 
 ### 4.2 Writes (connector to Pitwall)
 
@@ -160,13 +183,13 @@ raw bytes); arrays of numbers stay accepted. The write API's `hello` is built fr
 
 | Method | Params (besides the write API fields) | Result | Idempotency key `ik` (convention) |
 |---|---|---|---|
-| `pitwall.write.catalog` v1 | none | `{ok, type}` | `<id>/catalog/<sha256-12 of params>` |
+| `pitwall.write.catalog` v1 | none | `{ok, type, classes, cars, tracks, layouts}` (counts) | `<id>/catalog/<sha256-12 of params>` |
 | `pitwall.write.session_start` v1 | `session_key: str` (16 hex digits, random per session, chosen by the connector) | `{ok, type, session_id}` | `<id>/<session_key>/start` |
-| `pitwall.write.setup` v1 | `session_key`, `seq: int` (1.. per session) | `{ok, type}` | `<id>/<session_key>/setup/<seq>` |
+| `pitwall.write.setup` v1 | `session_key`, `seq: int` (1.. per session) | `{ok, type, session_id, setup, stint, stored}` | `<id>/<session_key>/setup/<seq>` |
 | `pitwall.write.lap` v1 | `session_key`, `seq: int` (the connector's lap sequence in the session, 1..) | `{ok, type, session_id, lap, lap_id, stint}` | `<id>/<session_key>/lap/<seq>` |
-| `pitwall.write.participant_laps` v1 | `session_key`, `seq: int` | `{ok, type}` | `<id>/<session_key>/participants/<seq>` |
+| `pitwall.write.participant_laps` v1 | `session_key`, `seq: int` | `{ok, type, session_id, rows, stored}` | `<id>/<session_key>/participants/<seq>` |
 | `pitwall.write.pit_exit` v1 | `session_key`, `seq: int` (1.. per session) | `{ok, type, session_id, stint, new_stint}` | `<id>/<session_key>/pit_exit/<seq>` |
-| `pitwall.write.session_end` v1 | `session_key` | `{ok, type, laps, discarded}` | `<id>/<session_key>/end` |
+| `pitwall.write.session_end` v1 | `session_key` | `{ok, type, session_id, stored, laps, discarded}` | `<id>/<session_key>/end` |
 
 - Flags: all `ordered: true`, `idempotent: true`. Deadline 30 s. A lap (about 1.2 MB as `bin`)
   is chunked by the library.
@@ -236,7 +259,7 @@ from a connector (a connector that wants one declares a code with a `text` param
 - Nothing is queued by a connector while Pitwall is down: an announcement is worth something
   only now.
 
-### 4.7 Channels a connector may subscribe to
+### 4.5 Channels a connector may subscribe to
 
 State channels give the current value on (re)subscribe; event channels are **live only**: a
 subscriber that was down misses them. Event channels of one connection keep send order, so a
@@ -256,7 +279,7 @@ subscriber of both sees `pitwall.sessions.started` before that session's
 | `pitwall.announcements` v1 | event | `{id: str, source: "connector"\|"pitwall", connector_id: str?, connector_name: str? (when source is "connector"), code: str, say: str (final sentence, user's language, numbers in words), text: str (written form), variant: int (0 when none), language: str, priority: "spotter"\|"critical"\|"high"\|"normal"\|"low", max_wait_s?: number, slot?: str, at}` (`max_wait_s` and `slot` only when the catalog sets them). The radio speaks it: ordered by level (`spotter` > `critical` > `high` > `normal` > `low`), then first come first served; only `spotter` cuts what is playing; a queued message is replaced by a newer one of its `slot`; dropped when not started within `max_wait_s`; without `max_wait_s` it waits until it can be said. |
 | `pitwall.catalogs` v1 | state | `{rev: int, catalogs: [{catalog, connector_id, connected: bool, codes: int, declared_at}]}`; `rev` +1 on a declare that changes a code or its fields, a translation landing, a connector connecting or disconnecting |
 
-### 4.8 Connector actions
+### 4.6 Connector actions
 
 Commands only the connected simulator can carry out (tests, and other things only that game
 has), sent by the engineer's agent. The connector declares them with their data and answer
@@ -313,7 +336,7 @@ sizes, outcome, `driver_confirmed`; data and answer cut at 4 KiB).
 | `connector.status` v1 | state | every service | at once, on every connection that declares it |
 | `connector.live_frame` v1 | method | the recorder | on tool requests and after every stored lap |
 | `connector.capture_target` v1 | method (optional) | the recorder | before each capture (4.3) |
-| `connector.action` v1 | method (optional) | the recorder | when the engineer sends an action the connector declared (4.8); deadline: the action's `timeout_s` |
+| `connector.action` v1 | method (optional) | the recorder | when the engineer sends an action the connector declared (4.6); deadline: the action's `timeout_s` |
 | `connector.telemetry` v1 | stream | the recorder | while brake cues can fire |
 
 A third-party connector needs only `connector.status` and the write methods; each other name
@@ -354,10 +377,11 @@ Every write (4.2) goes through the connector's **outbox**, a folder private to t
    `{method, v, ik, p}` (atomic: temporary file, then rename). One file write per lap and per
    session message: the file is written by the background writer, never by the sampling loop.
 2. Sent in sequence order, **one at a time** (ordered methods; each waits for its answer).
-3. `ok`: the file is deleted. A non-retryable error (`bad_request`, `session_closed`,
-   `unknown_session`): moved to `outbox\rejected\` and logged. A retryable one (`busy`,
-   `writer_busy`, `timeout`, `disconnected`, `shutting_down`): kept; retried after
-   `retry_ms` or the reconnect, same key.
+3. `ok`: the file is deleted. One of the six non-retryable codes (`bad_request`,
+   `session_closed`, `unknown_session`, `too_large`, `unknown_method`, `version_unsupported`):
+   moved to `outbox\rejected\` and logged. **Anything else** keeps the file and retries with the
+   same key after `retry_ms`, 1 s by default and at most 10 s. For example `connector_busy`,
+   `unavailable`, `busy`, `writer_busy`, `timeout`, `shutting_down` and a lost connection.
 4. While Pitwall is down the recorder keeps recording into the outbox; after the reconnect it
    replays oldest first, before any new write. Pitwall's idempotency makes a write sent twice
    (answer lost) stored once.
@@ -427,7 +451,7 @@ expects to reach the endpoint; if it cannot, the connector does not work (shown 
 | `connector.live_frame`, `connector.capture_target`, `connector.telemetry` | 5.3, 5.5 | optional | Each enables a Pitwall function (live tools, captures, brake cues). |
 | `pitwall.catalog.declare` + `pitwall.announce` | 4.4 | optional | The announcement catalog, in the connector's own language (English usually). **The connector translates nothing**: the managing app translates every catalog, these included (section 6). |
 | `pitwall.guidance.declare` | 4.4 | optional | Rules for the agent about your simulator (English): what it must know before reading a setup, a capture, ... |
-| `pitwall.actions.declare` + `connector.action` | 4.8 | optional | Commands only your simulator can carry out, sent by the engineer's agent: each with its data and answer format (a JSON Schema subset). |
+| `pitwall.actions.declare` + `connector.action` | 4.6 | optional | Commands only your simulator can carry out, sent by the engineer's agent: each with its data and answer format (a JSON Schema subset). |
 
 The user's language (`language` in the managing app's `hub\settings.json` in the workspace) is
 read by a connector only for its own windows.
@@ -451,3 +475,20 @@ read by a connector only for its own windows.
 4. At run time: `pitwall.announce {code: "flag_yellow", params: {sector: 2}}`: Pitwall composes
    `say` = "Bandera amarilla, sector dos." for a Spanish-speaking user, publishes it on
    `pitwall.announcements` and the radio speaks it.
+
+## 7. The hub's endpoint, `hub` (connector setup)
+
+A connector's setup program uses two methods of the managing app to stop the connector while it
+replaces its files ([connector-protocol.md section 1.2](connector-protocol.md#12-updating-your-connector-while-stintmate-runs)).
+Both are ordered. An answer `busy` carries `details.state`: `starting` or `exiting` (the managing app is not
+ready or is closing) or `busy` (it did not answer within 2 s).
+
+| Method | Params | Result | Errors |
+|---|---|---|---|
+| `hub.connector.hold` v1 | `{id, purpose?: "update" \| "uninstall" (default "update"), ttl_s?: int 30..1800 (default 300)}` | `{id, state: "held" \| "stopping", restart: bool, expires_in_s}` | `bad_request`; `not_found` (no such connector); `busy` with `details.recording` true (a driving session is being recorded) |
+| `hub.connector.release` v1 | `{id, start?: bool (default true)}` | `{id, released: bool, starting: bool}` | `bad_request` |
+
+A hold stops the connector and keeps it stopped until a release, the rewrite of its descriptor,
+the deadline, or the user's Start or Stop. Repeating a hold moves the deadline to the later one.
+Releasing starts the connector again with the descriptor's current launcher if it was wanted
+before; repeating a release is safe.

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pitwall.local/connector-kit/descriptor.schema.json",
+  "title": "A connector descriptor",
+  "description": "descriptor.md: the file <LocalAppData>\\Stintmate\\connectors\\<id>.json. Its id must also equal the file name without .json, which a schema cannot check. Unknown keys are allowed: the hub ignores them.",
+  "type": "object",
+  "properties": {
+    "schema": {"const": 1, "description": "The descriptor's version."},
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"},
+    "name": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "minLength": 1},
+    "sim": {"type": "string"},
+    "sim_name": {"type": "string"},
+    "flavour": {"type": "string"},
+    "launcher": {"type": "string", "minLength": 1, "description": "Absolute path of the control app's executable."},
+    "args": {"type": "array", "items": {"type": "string"}},
+    "control_protocol": {"const": "stintmate-ipc/2"},
+    "endpoint": {"type": "string", "minLength": 1},
+    "mutex": {"type": "string", "minLength": 1},
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {"id": {"type": "string", "minLength": 1}, "name": {"type": "string"}},
+        "required": ["id"]
+      }
+    },
+    "logs": {"type": "array", "items": {"type": "string"}},
+    "uninstall": {"type": "array", "items": {"type": "string"}},
+    "window": {"type": "boolean"},
+    "features": {"type": "array", "items": {"type": "string"}},
+    "written_at": {"type": "string"},
+    "written_by": {"type": "string"}
+  },
+  "required": ["schema", "id", "name", "version", "launcher", "args", "control_protocol",
+               "endpoint", "mutex", "services"]
+}

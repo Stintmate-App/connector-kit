@@ -1,0 +1,61 @@
+{
+  "sim": "examplesim",
+  "phase": "on_track",
+  "taken_at": "2026-01-02T18:00:00.123+02:00",
+  "data_age_s": 0.02,
+  "session": {
+    "type": "race",
+    "time_remaining_s": 1260.5,
+    "laps_in_event": null,
+    "duration_s": 1800,
+    "additional_laps": 1,
+    "started": true
+  },
+  "track": {
+    "track_id": "example-ring",
+    "layout_id": "example-ring-gp",
+    "track_name": "Example Ring",
+    "layout_name": "Grand Prix",
+    "length_m": 4210.5
+  },
+  "car": {
+    "car_id": "example-gt",
+    "class_id": "gt",
+    "car_name": "Example GT",
+    "class_name": "GT",
+    "pit_mode": 0,
+    "speed_kmh": 187.4,
+    "gear": 4,
+    "rpm": 6900,
+    "fuel_l": 41.3,
+    "fuel_capacity_l": 80,
+    "penalty": null,
+    "wheels": {
+      "fl": {"tread_in_c": 88.1, "tread_mid_c": 90.4, "tread_out_c": 92.0, "pressure_kpa": 182.5, "carcass_c": 85.0, "wear": 0.12, "compound": "medium", "brake_c": 410},
+      "fr": {"tread_in_c": 87.5, "tread_mid_c": 89.9, "tread_out_c": 91.2, "pressure_kpa": 182.9, "carcass_c": 84.6, "wear": 0.12, "compound": "medium", "brake_c": 402},
+      "rl": {"tread_in_c": 85.2, "tread_mid_c": 87.0, "tread_out_c": 88.8, "pressure_kpa": 176.1, "carcass_c": 82.3, "wear": 0.1, "compound": "medium", "brake_c": 305},
+      "rr": {"tread_in_c": 84.8, "tread_mid_c": 86.7, "tread_out_c": 88.1, "pressure_kpa": 176.4, "carcass_c": 82.0, "wear": 0.1, "compound": "medium", "brake_c": 301}
+    }
+  },
+  "lap": {
+    "current_lap": 5,
+    "laps_completed": 4,
+    "distance_m": 1520.3,
+    "time_s": 48.6,
+    "valid": true,
+    "sector": 2,
+    "last_lap_s": 97.412,
+    "best_lap_s": 96.88,
+    "lap_type": "flying",
+    "invalid_cause": null,
+    "invalid_cause_certain": true,
+    "invalid_at_m": null
+  },
+  "splits": {"ahead_s": 1.4, "behind_s": 2.9},
+  "conditions": {"ambient_c": 21.5, "track_c": 33.0, "rain": 0, "wind_speed_ms": 2.5, "cloud": 0.3},
+  "participants": [
+    {"index": 0, "name": "Ada Example", "is_player": false, "is_safety_car": false, "active": true, "position": 1, "laps_completed": 4, "current_lap": 5, "distance_m": 1650.0, "sector": 2, "pit_mode": 0, "car_id": "example-gt", "class_id": "gt", "last_lap_s": 96.9, "best_lap_s": 96.5},
+    {"index": 1, "name": "Player One", "is_player": true, "is_safety_car": false, "active": true, "position": 2, "laps_completed": 4, "current_lap": 5, "distance_m": 1520.3, "sector": 2, "pit_mode": 0, "car_id": "example-gt", "class_id": "gt", "last_lap_s": 97.412, "best_lap_s": 96.88},
+    {"index": 2, "name": "Sam Sample", "is_player": false, "is_safety_car": false, "active": true, "position": 3, "laps_completed": 4, "current_lap": 5, "distance_m": 1390.0, "sector": 2, "pit_mode": 0, "car_id": "example-gt", "class_id": "gt", "last_lap_s": 98.1, "best_lap_s": 97.6}
+  ]
+}
