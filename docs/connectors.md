@@ -143,8 +143,7 @@ writer holds the database (an import): nothing was stored, send the same call ag
 continues across reconnections and Pitwall restarts (same key). Keeping the writes that could
 not be delivered is the connector's job: store each write, in order, with its idempotency key,
 and send it again after a reconnect until Pitwall answers, so that laps finished while Pitwall
-is down are stored when it comes back ([protocol section 3.3](connector-protocol.md#33-laps-while-pitwall-is-down-the-outbox);
-the skeleton resends in memory, a real recorder writes to disk on another thread). You do not
+is down are stored when it comes back ([protocol section 3.3](connector-protocol.md#33-laps-while-pitwall-is-down-the-outbox)). You do not
 compute track outlines: the core refreshes a layout's outline after your
 `pitwall.write.session_end` when the best clean lap of the layout changed.
 
@@ -199,7 +198,7 @@ for a Python connector, and a copy of [`skeleton/`](../skeleton/README.md) as a 
    documents, and it checks that the recorder's writes follow the protocol.
 2. **Test the Pitwall side of your connection** with a fake Pitwall in your own tests, as the
    skeleton does: check the hello, that `connector.status` is declared, that each write
-   carries its `session_key` and idempotency key, that a refused write is sent again, and
+   carries its `session_key` and idempotency key, that a retryable error is sent again and a refused write is set aside, and
    that your connector survives the endpoint going away and coming back.
 3. **Test the protocol side with the checker.** `stintmate-ipc-check client <pipe> --key-file
    <key>` serves a test endpoint and checks the handshake, reconnection and messages of the

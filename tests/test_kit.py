@@ -83,9 +83,11 @@ def test_the_zip_holds_what_the_readme_lists():
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     paths = re.search(r'"\$SHA" -- (.+)', workflow).group(1).split()
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    sentence = re.search(r"The zip holds(.*?)under a", readme, re.S).group(1)
+    listed = {item.strip("/") for item in re.findall(r"`([^`]+)`", sentence)}
+    assert {p.strip("/") for p in paths} == listed
     for path in paths:
         assert (ROOT / path).exists(), path
-        assert path.strip("/") in readme, path
 
 
 def test_the_licences_are_apache():

@@ -145,3 +145,32 @@ def test_outbox_files_have_the_documented_format(workspace, pitwall):
     assert len({d["ik"] for d in docs}) == SESSION_WRITES
     lap = next(d for d in docs if d["method"].endswith(".lap"))
     assert isinstance(lap["p"]["channels"]["t"]["data"], bytes)
+
+
+def test_a_call_timeout_keeps_the_write_and_the_sender_goes_on(workspace, tmp_path):
+    """CallTimeout is not a RemoteError: the sender must survive it and send again."""
+    from stintmate_ipc import CallTimeout
+
+    from skeleton_connector.outbox import Outbox
+
+    class Client:
+        connected = True
+
+        def __init__(self):
+            self.calls = []
+
+        def call(self, method, params, timeout, idempotency_key):
+            self.calls.append(idempotency_key)
+            if len(self.calls) == 1:
+                raise CallTimeout("no answer")
+            return {"ok": True}
+
+    client = Client()
+    box = Outbox(tmp_path / "outbox", client).start()
+    try:
+        box.put("pitwall.write.lap", "k/1", {"x": 1})
+        assert wait(lambda: box.summary()["pending"] == 0)
+    finally:
+        box.close(0)
+    assert client.calls == ["k/1", "k/1"]
+    assert not (tmp_path / "outbox" / "rejected").exists()

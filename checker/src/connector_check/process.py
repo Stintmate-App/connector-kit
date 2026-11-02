@@ -60,6 +60,31 @@ def _job() -> int | None:
     return _JOB or None
 
 
+def job_usage() -> tuple[float, int] | None:
+    """(CPU seconds, processes ever started) of every process the job has held, ended ones
+    included, from the job's own accounting; None when there is no job."""
+    job = _job()
+    if not job:
+        return None
+
+    class Accounting(ctypes.Structure):
+        _fields_ = [("user", ctypes.c_int64), ("kernel", ctypes.c_int64),
+                    ("period_user", ctypes.c_int64), ("period_kernel", ctypes.c_int64),
+                    ("page_faults", wintypes.DWORD), ("total", wintypes.DWORD),
+                    ("active", wintypes.DWORD), ("terminated", wintypes.DWORD)]
+
+    try:
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.QueryInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
+                                                  wintypes.DWORD, ctypes.c_void_p]
+        info = Accounting()
+        if not k32.QueryInformationJobObject(job, 1, ctypes.byref(info), ctypes.sizeof(info), None):
+            return None                                  # JobObjectBasicAccountingInformation
+        return (info.user + info.kernel) / 1e7, int(info.total)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _assign(popen: subprocess.Popen) -> None:
     job = _job()
     if not job:

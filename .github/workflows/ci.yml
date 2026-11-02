@@ -33,10 +33,14 @@ jobs:
         working-directory: checker
         run: uv run pytest -q
       - name: Kit tests
-        run: uv run --no-project --with pytest pytest -q tests
+        run: uv run --no-project --with pytest --with jsonschema pytest -q tests
       - name: JSON files are valid
         run: |
           uv run --no-project python -m json.tool contract.json > /dev/null
           uv run --no-project python -m json.tool docs/write-api.schema.json > /dev/null
+          uv run --no-project python -m json.tool docs/live-frame.schema.json > /dev/null
+          uv run --no-project python -m json.tool docs/control-state.schema.json > /dev/null
+          uv run --no-project python -m json.tool docs/descriptor.schema.json > /dev/null
+          uv run --no-project python -m json.tool docs/live-frame.sample.json > /dev/null
       - name: Documentation check
         run: scripts/check-docs.sh

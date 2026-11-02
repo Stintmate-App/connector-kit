@@ -61,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         import stintmate_ipc as ipc
     except (ImportError, OSError) as exc:
         print(f"connector-check: the stintmate-ipc package is not usable ({exc}); "
-              "run skeleton\\fetch-ipc.ps1 once", file=sys.stderr)
+              "run powershell -ExecutionPolicy Bypass -File skeleton\\fetch-ipc.ps1", file=sys.stderr)
         return EXIT_CANNOT
     from . import checks, descriptor
     from .report import Report
@@ -106,7 +106,10 @@ def main(argv: list[str] | None = None) -> int:
         report.finish("interrupted")
         print("connector-check: interrupted", file=sys.stderr)
     finally:
-        teardown(ctx)
+        try:
+            teardown(ctx)
+        except Exception as exc:  # noqa: BLE001 - the report below must still print
+            print(f"connector-check: cleaning up failed ({exc!r}); folder {tmp}", file=sys.stderr)
     for line in report.lines() + [""] + report.summary():
         print(line)
     if args.report:
@@ -131,11 +134,13 @@ def teardown(ctx) -> None:
         pass
     tmp = ctx.scratch.get("tmp")
     if tmp is not None:
-        for _ in range(5):
+        for _ in range(10):
             shutil.rmtree(tmp, ignore_errors=True)
             if not Path(tmp).exists():
                 break
-            time.sleep(0.3)
+            time.sleep(0.5)
+        else:
+            print(f"connector-check: could not remove {tmp}", file=sys.stderr)
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from stintmate_ipc import Client, HandshakeError, PeerInfo, RemoteError
+from stintmate_ipc import Client, HandshakeError, IpcError, PeerInfo, RemoteError
 
 from . import APP_ID, CONNECTOR_ID, CONNECTOR_NAME, CONNECTOR_VERSION, SERVICE_ID, SIM, SIM_NAME
 from .game import Game
@@ -78,6 +78,8 @@ class Recorder:
         self._watcher: threading.Thread | None = None
         self._session: threading.Thread | None = None
         self._session_stop = threading.Event()
+        self._recording = False
+        self._lock = threading.Lock()      # _set is called from several threads
 
     @property
     def running(self) -> bool:
@@ -85,7 +87,7 @@ class Recorder:
 
     @property
     def recording(self) -> bool:
-        return self._session is not None and self._session.is_alive()
+        return self._recording
 
     @property
     def state(self) -> str:
@@ -144,7 +146,7 @@ class Recorder:
                  f"{CONNECTOR_ID}/actions/{sha12(ACTIONS)}")):
             try:
                 peer.call(method, params, timeout=5, idempotency_key=ik)
-            except RemoteError as exc:
+            except IpcError as exc:                      # RemoteError, a timeout ...
                 log.warning("%s: %s", method, exc)
 
     def _action(self, ctx: Any, params: dict[str, Any]) -> dict[str, Any]:
@@ -164,7 +166,8 @@ class Recorder:
     # ---- status ------------------------------------------------------------------------
 
     def _set(self, **fields: Any) -> None:
-        self.status.set({**(self.status.value or {}), **fields})
+        with self._lock:
+            self.status.set({**(self.status.value or {}), **fields})
         self._changed()
 
     def _outbox_changed(self) -> None:
@@ -185,7 +188,11 @@ class Recorder:
         """Ask the game, at most every 2 s. Nothing else touches it while it is closed."""
         up = False
         while not self._stop.is_set():
-            now = self.game.running()
+            try:
+                now = self.game.running()
+            except Exception:  # noqa: BLE001 - a failing check must not end the watcher
+                log.exception("The game check failed")
+                now = up
             if now != up:
                 up = now
                 self._set(game_running=up)               # before the first write, always
@@ -199,6 +206,7 @@ class Recorder:
 
     def _begin(self) -> None:
         self._session_stop.clear()
+        self._recording = True
         self._session = threading.Thread(target=self._run, daemon=True, name="session")
         self._session.start()
 
@@ -207,6 +215,9 @@ class Recorder:
         if self._session is not None:
             self._session.join(15)
         self._session = None
+        if self._recording:                              # the session did not end by itself
+            self._recording = False
+            self._changed()
 
     # ---- the session -------------------------------------------------------------------
 
@@ -228,6 +239,9 @@ class Recorder:
         except Exception:  # noqa: BLE001 - a bug must reach the log, not die silently
             log.exception("The recorder stopped")
             self._set(error_code="recorder_failed", message="The recorder stopped; see the log")
+        finally:
+            self._recording = False
+            self._changed()                              # `recording` is read from here
 
     def _play(self) -> None:
         self._write("catalog", CATALOG, f"{CONNECTOR_ID}/catalog/{sha12(CATALOG)}")

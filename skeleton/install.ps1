@@ -20,8 +20,11 @@
 
   Needs: uv (https://docs.astral.sh/uv/) only (it installs Python 3.12 itself; no git, no Rust).
   First it runs fetch-ipc.ps1, which puts the stintmate-ipc wheel in vendor (STINTMATE_IPC_RELEASE
-  points it at a local folder). Run it again to update; it replaces the environment and the
-  descriptor.
+  points it at a local folder). To update, run it again with -Update (while the connector
+  runs, only with -Update is it stopped first); the environment is rebuilt in place and the
+  descriptor replaced. The update is not atomic: if the install fails, the old build is gone,
+  the script says so and exits with a non-zero code. The hold then ends when the script
+  releases it, or at its time limit (300 s) when it cannot.
 
   STINTMATE_CONNECTORS_DIR, when set, replaces the descriptors folder (tests).
 
@@ -73,6 +76,7 @@ function Invoke-Setup([string[]]$Arguments) {
 # Holds the connector through the hub, or stops it when there is no hub. Returns $false when
 # the setup must stop with nothing changed. $script:holdTried says a release is due.
 $script:holdTried = $false
+$script:rebuilding = $false
 function Enter-Hold([string]$Purpose) {
     $code = Invoke-Setup @('hold', '--purpose', $Purpose, '--ttl', '300')
     if ($code -eq 4) {
@@ -96,22 +100,30 @@ if ($Uninstall) {
             exit 1
         }
     }
-    # Remove the descriptor only when it names THIS install (another build may have replaced it).
-    if (Test-Path -LiteralPath $target -PathType Leaf) {
-        $launcherOf = $null
-        try { $launcherOf = (Get-Content -LiteralPath $target -Raw -Encoding UTF8 | ConvertFrom-Json).launcher } catch { }
-        $under = $launcherOf -and ([System.IO.Path]::GetFullPath(($launcherOf -replace '/', '\')) + '\').StartsWith(
-            $destFull + '\', [System.StringComparison]::OrdinalIgnoreCase)
-        if ($under) {
-            Remove-Item -LiteralPath $target -Force
-            Write-Host "Removed: $target"
-        } else {
-            Write-Host "Left as it is (it names another install): $target"
+    $removed = $false
+    try {
+        # Remove the descriptor only when it names THIS install (another build may have replaced it).
+        if (Test-Path -LiteralPath $target -PathType Leaf) {
+            $launcherOf = $null
+            try { $launcherOf = (Get-Content -LiteralPath $target -Raw -Encoding UTF8 | ConvertFrom-Json).launcher } catch { }
+            $under = $launcherOf -and ([System.IO.Path]::GetFullPath(($launcherOf -replace '/', '\')) + '\').StartsWith(
+                $destFull + '\', [System.StringComparison]::OrdinalIgnoreCase)
+            if ($under) {
+                Remove-Item -LiteralPath $target -Force
+                Write-Host "Removed: $target"
+                $removed = $true
+            } else {
+                Write-Host "Left as it is (it names another install): $target"
+            }
+        }
+    } finally {
+        # A descriptor removed while held keeps the connector "updating" until it is released:
+        # release now, without starting, and before the environment that runs this goes. When
+        # the descriptor is still there, the connector starts again.
+        if ($script:holdTried) {
+            Invoke-Setup @('release', $(if ($removed) { '--no-start' } else { '--start' })) | Out-Null
         }
     }
-    # A descriptor removed while held keeps the connector "updating" until it is released: release
-    # now, without starting, and before the environment that runs this goes.
-    if ($script:holdTried) { Invoke-Setup @('release', '--no-start') | Out-Null }
     Set-Location -LiteralPath $env:TEMP      # this script may run from the folder it removes
     if (Test-Path -LiteralPath $destFull) { Remove-Item -LiteralPath $destFull -Recurse -Force }
     Write-Host "Uninstalled: $destFull"
@@ -131,6 +143,7 @@ try {
     if (-not $SkipInstall) {
         & (Join-Path $source 'fetch-ipc.ps1')
         if (-not $?) { throw 'fetch-ipc.ps1 failed' }
+        $script:rebuilding = $true     # from here the old environment may be gone
         uv venv --python 3.12 --clear $venv
         if ($LASTEXITCODE -ne 0) { throw 'uv venv failed' }
         # A normal (not editable) install: the environment holds a copy, so the connector keeps
@@ -178,6 +191,12 @@ try {
     [System.IO.File]::WriteAllText($tmp, $json, (New-Object System.Text.UTF8Encoding $false))
     Move-Item -LiteralPath $tmp -Destination $target -Force
     Write-Host "Installed: $target"
+} catch {
+    [Console]::Error.WriteLine("The install failed: $($_.Exception.Message)")
+    if ($script:rebuilding) {
+        [Console]::Error.WriteLine('The environment was being rebuilt: the earlier build may be gone. Run the install again.')
+    }
+    exit 1
 } finally {
     # With the new environment or the old one: the hub starts the connector again.
     if ($script:holdTried -and (Test-Path -LiteralPath $py -PathType Leaf)) {

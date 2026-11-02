@@ -74,7 +74,10 @@ reads nothing. Your `Game.running()` takes the file's place.
    connector to quit (`setup_hold stop`). If a session is being recorded, the script exits with
    code 1 and changes nothing. `-Uninstall` removes the descriptor only if its launcher is under
    the destination, releases without starting, and then removes the folder; a descriptor removed
-   while held leaves the connector "updating" until it is released. Run `install.ps1` from
+   while held leaves the connector "updating" until it is released. The update is not atomic: it
+   rebuilds the environment in place, so if the install fails the old build is gone; the script says
+   so, exits with a non-zero code and releases the hold when it can (otherwise the hold ends at its
+   300 s limit). Run `install.ps1` from
    Windows PowerShell or PowerShell 7, with a path that has spaces or not. Stintmate installs
    nothing for you and provides no Python.
 3. **Being started.** The hub runs the launcher with `--workspace <w> --managed --parent-pid
@@ -136,7 +139,7 @@ Without the hub, start `skeleton-connector.exe --workspace <workspace>` yourself
 After `fetch-ipc.ps1`, from the kit's root (the skeleton is registered by `install.ps1`):
 
 ```
-uv run --project checker connector-check --descriptor %LOCALAPPDATA%\Stintmate\connectors\skeleton.json --fake-game-file "{workspace}\connectors\skeleton\fake_game"
+uv run --project checker connector-check --descriptor "$env:LOCALAPPDATA\Stintmate\connectors\skeleton.json" --fake-game-file "{workspace}\connectors\skeleton\fake_game"
 ```
 
 The checker plays the fake game by creating that file in its own temporary workspace, so the
@@ -145,8 +148,8 @@ skeleton plays one session and the checker reports every check of the minimum le
 
 ## Using this as your own connector
 
-Rename the package, `CONNECTOR_ID` (equal to the folder name; `^[a-z0-9][a-z0-9_-]{0,31}$`), the mutex, the
-service ids and `sim`; keep `install.ps1` and the descriptor in step (the test fails when they
+Rename the package, `CONNECTOR_ID` (equal to the folder name; `^[a-z0-9][a-z0-9_-]{0,31}$`), the mutex and `sim` (the service id `recorder` stays: the
+hub's recording indicator and the checker use it); keep `install.ps1` and the descriptor in step (the test fails when they
 drift). Replace `game.py` and the script in `session.py` with the study of your simulator
 ([guide, section 10](../docs/guide.md#10-the-telemetry-study-and-the-findings-document)):
 a real recorder keeps its sampling loop free, hands each finished lap to the outbox from another

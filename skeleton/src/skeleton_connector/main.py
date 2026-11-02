@@ -41,11 +41,11 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
 def hold_mutex() -> object | None:
     """The single-instance mutex the descriptor names (the hub's liveness check). None: a
     control app already runs."""
-    kernel32 = ctypes.windll.kernel32
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel32.CreateMutexW.restype = ctypes.c_void_p
     tag = dev_tag()                                   # a test run has a mutex of its own
     handle = kernel32.CreateMutexW(None, False, f"{MUTEX}.{tag}" if tag else MUTEX)
-    if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+    if ctypes.get_last_error() == ERROR_ALREADY_EXISTS:
         return None
     return handle                                     # held until the process ends
 
@@ -53,7 +53,7 @@ def hold_mutex() -> object | None:
 def lower_priority() -> None:
     """Below normal, for this process and the threads it starts: a connector must not take
     CPU from the game, which matters most in VR."""
-    kernel32 = ctypes.windll.kernel32
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel32.GetCurrentProcess.restype = ctypes.c_void_p
     kernel32.SetPriorityClass.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
     kernel32.SetPriorityClass(kernel32.GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS)

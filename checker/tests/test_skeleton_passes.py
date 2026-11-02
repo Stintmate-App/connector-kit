@@ -50,7 +50,7 @@ def test_the_skeleton_passes_beside_a_real_stintmate(tmp_path):
     assert {i: c["status"] for i, c in automatic.items() if c["status"] != PASS} == {}, done.stdout
     assert done.returncode == 0 and doc["exit_code"] == 0, done.stdout
     assert FAIL not in {c["status"] for c in by_id.values()}
-    assert len(automatic) == 31
+    assert len(automatic) == 32
     # Nothing of the real apps was touched, and nothing was left running.
     assert real_pipes() == pipes_before
     assert real_files() == files_before

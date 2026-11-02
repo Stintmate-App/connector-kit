@@ -13,7 +13,7 @@
       "type": "object",
       "properties": {
         "type": {"description": "Session type (data-model.md).", "type": "string", "enum": ["practice", "qualifying", "race", "warmup", "other"]},
-        "time_remaining_s": {"description": "Session time left, s; null in a lap race or when not given.", "type": ["number", "null"], "exclusiveMinimum": 0},
+        "time_remaining_s": {"description": "Session time left, s; null in a lap race or when not given.", "type": ["number", "null"], "minimum": 0},
         "laps_in_event": {"description": "Laps of a lap race; null in a timed session.", "type": ["integer", "null"], "minimum": 1},
         "duration_s": {"description": "Length of a timed session, s; null in a lap race.", "type": ["number", "null"], "exclusiveMinimum": 0},
         "additional_laps": {"description": "Laps to drive after the time runs out in a timed race (0 = none).", "type": ["integer", "null"], "minimum": 0},
@@ -149,7 +149,7 @@
         "name": {"type": "string"},
         "is_player": {"type": "boolean"},
         "is_safety_car": {"type": "boolean", "default": false},
-        "active": {"description": "False for a slot the game lists but that is not in the session now.", "type": "boolean", "default": true},
+        "active": {"description": "False for a slot the game lists but that is not in the session now. Required: Pitwall drops an inactive slot from the rivals, gaps and neighbours.", "type": "boolean"},
         "position": {"type": ["integer", "null"], "minimum": 1},
         "laps_completed": {"type": "integer", "minimum": 0},
         "current_lap": {"type": ["integer", "null"], "minimum": 0},
@@ -161,7 +161,7 @@
         "last_lap_s": {"type": ["number", "null"], "exclusiveMinimum": 0},
         "best_lap_s": {"type": ["number", "null"], "exclusiveMinimum": 0}
       },
-      "required": ["index", "name", "is_player", "position", "laps_completed", "distance_m", "pit_mode"]
+      "required": ["index", "name", "is_player", "position", "active", "laps_completed", "distance_m", "pit_mode"]
     }
   }
 }

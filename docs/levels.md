@@ -12,7 +12,7 @@ the normative text of each row is in the document it links to.
 | **Parity** | Optional features that a fully equipped connector offers. Each one gives the user something specific and costs the developer something specific (section 6). The developer chooses at the start. |
 | **Beyond** | Extensions of your own that the contract has room for, and the rules that must never be broken (section 7). |
 
-The managing app (the hub) enforces none of this at this version of the kit: it lists, starts
+The managing app (the hub) enforces none of this: it lists, starts
 and supervises whatever its [descriptor](descriptor.md) describes. The kit's checker,
 `connector-check`, reports against the levels (section 9).
 
@@ -21,7 +21,7 @@ and supervises whatever its [descriptor](descriptor.md) describes. The kit's che
 | # | Requirement | What breaks without it | Where |
 |---|---|---|---|
 | M1 | A valid descriptor: `id` equal to the file name, an absolute launcher that exists, `control_protocol`, `endpoint`, `mutex`, `services`. | The hub cannot find the connector, or lists it as broken and never starts it. | [descriptor.md](descriptor.md) |
-| M2 | The launcher accepts the options the hub appends (`--workspace`, `--managed`, `--parent-pid`, and `--allow-synced` for a synced folder) and ships its own runtime inside its folder. | The hub starts it with those options and installs no interpreter for it. | [descriptor.md](descriptor.md), [guide.md](guide.md) section 3 |
+| M2 | The launcher accepts the options the hub appends (`--workspace`, `--managed`, `--parent-pid`, and `--allow-synced` for a synced folder), ignores any option it does not know, and ships its own runtime inside its folder. | The hub starts it with those options and installs no interpreter for it. | [descriptor.md](descriptor.md), [guide.md](guide.md) section 3 |
 | M3 | The control app holds its single-instance mutex while it runs; a second start exits. | The hub uses the mutex to tell whether the connector runs. | [descriptor.md](descriptor.md) |
 | M4 | The control endpoint serves `control.state` with every required field. | The hub cannot show the connector's status. | [contract.md](contract.md) section 3 |
 | M5 | `control.quit` exits within 20 s; `control.managed`, and `control.service.start` and `control.service.stop` for every listed service. | The hub cannot stop, adopt or switch it. | [contract.md](contract.md) section 3.1 |
@@ -29,7 +29,7 @@ and supervises whatever its [descriptor](descriptor.md) describes. The kit's che
 | M7 | Read the key; never create or replace it. Retry while the workspace, the key or Pitwall are missing. | The connection is refused, or Stintmate's own key is overwritten. | [guide.md](guide.md) section 4 |
 | M8 | Hello with the required metadata; `connector.status` sent on every change; `game_running` from the game's process, never from the existence of its data channel. | Screens and the hold of an update show the wrong state. | [connector-protocol.md](connector-protocol.md) sections 1 and 2 |
 | M9 | The link rule (section 3) and a correct `control.state.pitwall`. | False notices ("cannot reach Pitwall"), or a connector that is not heard. | [contract.md](contract.md) section 3.2 |
-| M10 | A catalog with `length_m` on every layout and stable ids; `session_start` and `session_end`; laps with correct `lap_type`, `valid`, `time_s`, `sim_lap` and `on_track`; `pit_exit` in order; no `stint` (Pitwall numbers stints). | Laps are refused, or stored in the wrong stint. | [write-api.md](write-api.md), [data-model.md](data-model.md) |
+| M10 | A catalog with `length_m` on every layout and stable ids; `session_start` and `session_end`; laps that carry a correct `lap_type`, with `valid`, `time_s`, `sim_lap` and `on_track` correct whenever they are sent; `pit_exit` in order; no `stint` (Pitwall numbers stints). | Laps are refused, or stored in the wrong stint. | [write-api.md](write-api.md), [data-model.md](data-model.md) |
 | M11 | The channels `t`, `dist`, `speed`, `throttle`, `brake` and `g_lat` on every lap that has channels, plus `x` and `z` when the game gives a position. | Lap analysis, comparison and corners fail (section 5). | [data-model.md](data-model.md) |
 | M12 | Units and signs checked against the game, and the findings written down. | Analysis runs on wrong numbers without any error. | [guide.md](guide.md) section 10 |
 | M13 | Every write carries its idempotency key `ik`. A retryable error is retried with the same key; a refused write is kept aside. | A lost answer stores a lap twice, or a refused lap blocks all the later ones. | [contract.md](contract.md) section 5.4 |
@@ -37,7 +37,7 @@ and supervises whatever its [descriptor](descriptor.md) describes. The kit's che
 | M15 | Sampling off the write path, below normal priority, a stated CPU budget, and the idle budget (section 4). | The game stutters, which matters most in VR. | [connectors.md](connectors.md) section 2 |
 | M16 | Logs in `<workspace>\connectors\<id>\`, named in the descriptor's `logs` and capped in size. | A problem report has nothing to attach. | [descriptor.md](descriptor.md) |
 | M17 | An `uninstall` command in the descriptor when anything installed the connector, and the hold of [connector-protocol.md](connector-protocol.md) section 1.2 when its setup replaces a running one. | Uninstall and update cannot be automatic. | [descriptor.md](descriptor.md) |
-| M18 | No text composed in a language the connector does not have: service names and labels come from its own catalog. | Texts reach the user in the wrong language. | [contract.md](contract.md) section 3.2, [catalogs.md](catalogs.md) |
+| M18 | No text composed in a language the connector does not have: service names and labels come from its own catalog. A connector in one language that does not serve `control.catalog.get` meets this. | Texts reach the user in the wrong language. | [contract.md](contract.md) section 3.2, [catalogs.md](catalogs.md) |
 | M19 | Honour `STINTMATE_DEV_INSTANCE=<tag>` in every process: pipes and mutex take the tag ([guide.md](guide.md) section 3 says how). | A test run and a real Stintmate on the same machine share a pipe name and a mutex name, so one of them is refused or adopted, and `connector-check` cannot run beside the real apps. | [guide.md](guide.md) section 3 |
 
 `length_m` is required: the layout length is what turns a lap's distance into a fraction of

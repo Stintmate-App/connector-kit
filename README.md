@@ -35,7 +35,7 @@ The kit carries no binary and no C header: they are assets of the stintmate-ipc 
 Each release is a GitHub release of this repository, tagged `vMAJOR.MINOR.PATCH`, with one asset,
 `connector-kit-<version>.zip`, and a `SHA256SUMS` file (`<sha256>  <name>`, one line per asset;
 verify with `Get-FileHash -Algorithm SHA256 <file>`). The zip holds `README.md`, `LICENSE`,
-`NOTICE`, `contract.json`, `docs/`, `native/` and `skeleton/` under a `connector-kit-<version>/` folder. The notes
+`NOTICE`, `CHANGELOG.md`, `SECURITY.md`, `contract.json`, `docs/`, `native/`, `skeleton/` and `checker/` under a `connector-kit-<version>/` folder. The notes
 of a release are its section of `CHANGELOG.md`; the tag must equal the version of the first
 `## <version>` heading of that file (`scripts/release-check.sh` compares the first word of that
 heading). A section named `X.Y.Z+docs.N` records a documentation-only correction of release
@@ -50,7 +50,7 @@ documentation check both run, together with the skeleton's tests and the JSON va
 
 Stintmate (the hub, Pitwall and its `pitwall-core`) is downloaded from https://stintmate.app and
 installed on Windows. The installation and the hub's first run create the user's workspace, the
-`ipc\key` file inside it and the folder the kit is copied to. The skeleton's tests and the
+`ipc\key` file inside it; the kit is downloaded into the user's work folder (below). The skeleton's tests and the
 conformance check run without it (they use a fake Pitwall); the hand test in `skeleton/README.md`
 and steps 4 and 6 of `docs/connectors.md` need an installed Stintmate with a workspace.
 

@@ -110,7 +110,7 @@ indeterminate progress. Dismissing is local to the managing app and never sent t
 | `exiting` | bool | |
 | `autostart` | bool? | `nil` if unreadable. |
 | `level` | str | The tray colour of the app as a whole: `off`, `ok`, `warn`, `error`. |
-| `services` | array of map | One per service: `{id, name, state, label, level, running, ownership, pid?, forced_stop, restart_pending?, delegable?, default?, always_on?, refusal?}` (`id` and `state` are machine values; `name` and `label` are texts in the user's language, translated by the app from its own catalog, never English-only). The last four are optional and additive (the version stays v1): `delegable` (bool, absent = false): the managing app may keep the service on or off across restarts, remembering the user's choice and restoring it, and offers a switch; without it the service is shown but never started or stopped on its own. `default` (`"on"`\|`"off"`, absent = `"off"`): the state restored while the managing app has no saved choice. `always_on` (bool): the app keeps it running whenever it runs; shown with no switch, started once with `control.service.start` if found off when the app connects (and there is no `refusal`), and never stopped. `refusal` (`{code: str, label: str}` \| null): the last start could not happen for a reason the user must fix (`code` a machine value, `label` in the user's language); set when the start fails, cleared when a start is attempted again or the service runs; shown with "Try again" and never retried by itself. |
+| `services` | array of map | One per service: `{id, name, state, label, level, running, ownership, pid?, forced_stop, restart_pending?, delegable?, default?, always_on?, refusal?}` (`id` and `state` are machine values; `name` and `label` are texts in the user's language, translated by the app from its own catalog; never a text composed in a language the app does not have, so an app in one language with no `control.catalog.get` meets this). The last four are optional and additive (the version stays v1): `delegable` (bool, absent = false): the managing app may keep the service on or off across restarts, remembering the user's choice and restoring it, and offers a switch; without it the service is shown but never started or stopped on its own. `default` (`"on"`\|`"off"`, absent = `"off"`): the state restored while the managing app has no saved choice. `always_on` (bool): the app keeps it running whenever it runs; shown with no switch, started once with `control.service.start` if found off when the app connects (and there is no `refusal`), and never stopped. `refusal` (`{code: str, label: str}` \| null): the last start could not happen for a reason the user must fix (`code` a machine value, `label` in the user's language); set when the start fails, cleared when a start is attempted again or the service runs; shown with "Try again" and never retried by itself. |
 
 A connector adds `connector: {id, name, version, sim, sim_name}`, `game_running: bool`,
 `pitwall: "connected"|"waiting"|"refused"` (from its services), `outbox: {pending: int,
@@ -170,7 +170,7 @@ its connections is open; its **functions** are the union of what its connections
 connection (no status heartbeat). One linked connector is **active**: the first whose
 `game_running` is true, until that game closes ([levels.md](levels.md) section 3). A write never
 makes a connector active. Single-connector answers (live state, captures, actions) follow the
-active connector, else the last one that was active and is still linked, else the first linked.
+active connector, else the one followed before if it is still linked, else the first linked.
 A Pitwall older than contract 2 serves one connector id at a time and closes the connection of a
 second one with `bye` `connector_busy`; the current one never sends that code.
 
@@ -268,7 +268,7 @@ subscriber of both sees `pitwall.sessions.started` before that session's
 
 | Channel | Kind | Payload (`d`) |
 |---|---|---|
-| `pitwall.connectors` v1 | state | `{core: {pid, version, run, started_at, workspace, data_dir}, connector: {id, name, version, sim, sim_name, connected_at, functions: [str], services: [{service, pid, connected_at, status: <connector.status>}], recording: <pitwall.recording>}?, refused: [{app, sim?, at}] (last 5)}`: what a connector UI shows as "Pitwall: connected" |
+| `pitwall.connectors` v1 | state | `{core: {pid, version, run, started_at, workspace, data_dir}, connector: {id, name, version, sim, sim_name, connected_at, functions: [str], services: [{service, pid, connected_at, status: <connector.status>}], recording: <pitwall.recording>}?, connectors: [entry], active: str?, refused: [{app, sim?, at, code}] (last 5)}`: what a connector UI shows as "Pitwall: connected". `connectors` lists every linked connector in connection order, each entry shaped like `connector` plus `game_running` and `active`; `active` is the id of the active connector or null |
 | `pitwall.recording` v1 | state | `nil`, or `{connector_id, session_key, session_id?, session_type, car_id, car, track_id, track, layout_id, layout, track_length_m?, started_at, stint, lap}` (`lap`: the lap being driven; `session_id` after `session_start`) |
 | `pitwall.sessions.started` v1 | event | the session's fields + `session_key`, `connector_id`, `at` |
 | `pitwall.sessions.ended` v1 | event | `{session_id?, session_key, laps, discarded, at}` |
@@ -339,7 +339,7 @@ sizes, outcome, `driver_confirmed`; data and answer cut at 4 KiB).
 | `connector.action` v1 | method (optional) | the recorder | when the engineer sends an action the connector declared (4.6); deadline: the action's `timeout_s` |
 | `connector.telemetry` v1 | stream | the recorder | while brake cues can fire |
 
-A third-party connector needs only `connector.status` and the write methods; each other name
+A connector needs only `connector.status` and the write methods; each other name
 is optional and its absence gives `not_implemented_by_connector` to the tool that needs it.
 
 ### 5.2 `connector.status` v1 (state)

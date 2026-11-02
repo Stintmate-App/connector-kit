@@ -44,3 +44,19 @@ def test_a_launcher_that_does_not_exist_fails_to_start_and_leaves_nothing(tmp_pa
     got = status_of(out)
     assert got["M2.options"] == "FAIL" and got["M3.single"] == "SKIP" and code == 1
     assert leftovers() == []
+
+
+def test_the_job_counts_the_cpu_of_processes_that_already_ended(tmp_path):
+    import sys
+
+    from connector_check import process
+    before = process.job_usage()
+    assert before is not None
+    proc = process.Proc([sys.executable, "-c", "sum(range(3_000_000))"], dict(os.environ),
+                        tmp_path / "burn.log")
+    try:
+        assert proc.wait(30)
+    finally:
+        proc.kill_tree()
+    after = process.job_usage()
+    assert after[1] > before[1] and after[0] > before[0]

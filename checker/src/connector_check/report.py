@@ -71,6 +71,10 @@ class Report:
     def failed(self, check_id: str, evidence: object) -> None:
         self.set(check_id, FAIL, evidence)
 
+    def manual(self, check_id: str, evidence: object = "") -> None:
+        """A check the tool cannot decide here: it stays for the person to confirm."""
+        self.set(check_id, MANUAL, evidence)
+
     def skip_group(self, ids: list[str], why: str) -> None:
         for i in ids:
             res = self.results.get(i)
