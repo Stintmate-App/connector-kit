@@ -55,9 +55,13 @@ def measure(root: Proc, seconds: float, settle: float = 10.0) -> Measurement:
         common = before.keys() & after.keys()
         changed = set(before) != set(after)
         names = ", ".join(f"{after[k][1]}:{k[0]}" for k in sorted(after))
-        unjudged = sum(1 for k in after if after[k][0] <= MIN_CPU_S)
-        low = [f"{after[k][1]}:{k[0]}" for k in after
-               if after[k][2] not in BELOW_NORMAL and after[k][0] > MIN_CPU_S]
+        # The busiest process is always judged: on a fast machine all of them may stay under the
+        # limit, and a launcher parent that does no work must not count.
+        judged = {k for k in after if after[k][0] > MIN_CPU_S}
+        if after:
+            judged.add(max(after, key=lambda k: after[k][0]))
+        unjudged = len(after) - len(judged)
+        low = [f"{after[k][1]}:{k[0]}" for k in judged if after[k][2] not in BELOW_NORMAL]
         if job_before is not None and job_after is not None:
             used, started = job_after[0] - job_before[0], job_after[1] - job_before[1]
             note = (f"{used * 1000:.0f} ms of CPU in {wall:.1f} s by every process of the job, "
