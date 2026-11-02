@@ -56,3 +56,24 @@ def test_a_bad_descriptor_fails_each_static_check(tmp_path):
 def test_a_missing_descriptor_cannot_run(tmp_path):
     code, _ = run_cli("--descriptor", str(tmp_path / "nope.json"))
     assert code == 2
+
+
+def test_no_uninstall_key_is_left_to_the_person(tmp_path):
+    path = skeleton_descriptor(tmp_path)
+    doc = json.loads(path.read_text())
+    del doc["uninstall"]
+    path.write_text(json.dumps(doc))
+    code, out = run_cli("--descriptor", str(path), "--only", "M17.uninstall")
+    assert lines_by_id(out) == {"M17.uninstall": MANUAL} and "not declared" in out and code == 0
+
+
+def test_child_env_drops_the_real_workspace(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from connector_check import checks
+    monkeypatch.setenv("STINTMATE_WORKSPACE", str(tmp_path / "real"))
+    ctx = SimpleNamespace(scratch={"tmp": tmp_path}, args=SimpleNamespace(instance_env="X_TAG"),
+                          tag="t1")
+    env = checks.child_env(ctx)
+    assert "STINTMATE_WORKSPACE" not in env and env["X_TAG"] == "t1"
+    assert env["APPDATA"].startswith(str(tmp_path))

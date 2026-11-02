@@ -51,7 +51,7 @@ def test_distance_runs_forward_from_the_line_to_the_length():
 def test_pedals_are_zero_to_one_and_used():
     assert verdict(good(channels={"throttle": [100 * x for x in good().channels["throttle"]]}),
                    "pedals_range") == S.BAD                          # percent
-    assert verdict(good(channels={"brake": [0.0] * N}), "pedals_range") == S.BAD
+    assert verdict(good(channels={"brake": [0.0] * N}), "pedals_range") == S.MANUAL   # an oval lap
     assert verdict(good(channels={"throttle": [0.2] * N}), "pedals_range") == S.BAD
     assert verdict(good(), "pedals_range") == S.OK
 

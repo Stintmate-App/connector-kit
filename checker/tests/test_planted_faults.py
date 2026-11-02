@@ -55,7 +55,8 @@ def p(file: str, old: str, new: str) -> list[tuple[str, str, str]]:
 FAULTS: dict[str, tuple[list, dict, str, str, list[str]]] = {
     "no_endpoint": ([], {"endpoint": None}, "M1.schema", "M1", []),
     "wrong_id": ([], {"id": "other"}, "M1.identity", "M1", []),
-    "no_uninstall": ([], {"uninstall": None}, "M17.uninstall", "M17.uninstall", []),
+    "bad_uninstall": ([], {"uninstall": ["C:\\nowhere\\gone.exe"]}, "M17.uninstall",
+                      "M17.uninstall", []),
     "unknown_feature": ([], {"features": ["bogus"]}, "F.names", "F.names", ["--level", "features"]),
     "strict_args": ([("main.py", "args, _unknown = p.parse_known_args(argv)", "args = p.parse_args(argv)")],
                     {}, "M2.options", "M2", []),
@@ -71,6 +72,16 @@ FAULTS: dict[str, tuple[list, dict, str, str, list[str]]] = {
                         "M5.services", []),
     "no_managed": (p("control.py", '("control.managed", self._managed)',
                      '("control.managedx", self._managed)'), {}, "M5.managed", "M5.managed", []),
+    "ignores_parent_death": (p("control.py", "if not pid_alive(pid):", "if False:"), {}, "M5.parent",
+                             "M5.parent", []),
+    "exits_with_parent": (p("control.py", 'log.info("The managing process %s ended; running standalone", pid)',
+                            'self.exit.set()'), {}, "M5.parent", "M5.parent", []),
+    "starts_alone_managed": (p("control.py", "            self._watch_parent()\n        else:\n            self._start_recorder()",
+                               "            self._watch_parent()\n        if True:\n            self._start_recorder()"),
+                             {}, "M5.services", "M5.services", []),
+    "never_sets_phase": (FAST + [("recorder.py", 'self._set(phase="on_track")', "self._set(phase=None)"),
+                                 ("recorder.py", 'phase="on_track" if lap_type != "in" else "garage"',
+                                  'phase="garage"')], {}, "M8.game", "M8.game", []),
     "quit_anyone": ([QUIT_RULE], {}, "M5.stranger", "M5.stranger", []),
     "slow_quit": (p("control.py", "threading.Timer(0.1, self.exit.set)",
                     "threading.Timer(30.0, self.exit.set)"), {}, "M5.quit", "M5.quit", []),
@@ -108,7 +119,10 @@ FAULTS: dict[str, tuple[list, dict, str, str, list[str]]] = {
     "sends_stint": (FAST + p("recorder.py", '"seq": seq, "lap_type": lap_type,',
                              '"seq": seq, "stint": 1, "lap_type": lap_type,'), {}, "M10.order",
                     "M10.order", []),
-    "times_out_lap": (FAST + [LAP_TIME], {}, "M10.laps", "M10.laps", []),
+    "flying_after_exit": (FAST + p("session.py", '("lap", "out", None, True),          # out lap: not timed',
+                                   '("lap", "flying", 61.5, True),'), {}, "M10.laps", "M10.laps", []),
+    "flying_before_exit": (FAST + p("session.py", '("lap", "in", None, True),           # ended in the pits: not timed',
+                                    '("lap", "flying", 61.5, True),'), {}, "M10.laps", "M10.laps", []),
     "no_g_lat": (FAST + p("session.py", '"g_lat": _f32(', '"ext_g_lat": _f32('), {}, "M11.channels",
                  "M11", []),
     "g_lat_flipped": (FAST + p("session.py", '"g_lat": _f32([2.0 * s', '"g_lat": _f32([-2.0 * s'),
@@ -129,6 +143,14 @@ FAULTS: dict[str, tuple[list, dict, str, str, list[str]]] = {
                       {}, "M13.retry", "M13.retry", []),
     "new_key_on_retry": (FAST + p("outbox.py", "idempotency_key=ik)", "idempotency_key=ik + os.urandom(2).hex())"),
                          {}, "M13.retry", "M13.retry", []),
+    "retries_too_large": (FAST + p("outbox.py", '"unknown_session", "too_large",', '"unknown_session",'),
+                          {}, "M13.refused", "M13.refused", []),
+    "drops_unknown_code": (FAST + p("outbox.py", "if exc.code in NON_RETRYABLE:",
+                                    'if exc.code not in ("busy", "writer_busy", "timeout", '
+                                    '"shutting_down", "unavailable", "connector_busy"):'),
+                           {}, "M13.retry", "M13.retry", []),
+    "ignores_retry_ms": (FAST + p("outbox.py", "wait = RETRY_DEFAULT_S if exc.retry_ms is None else exc.retry_ms / 1000",
+                                  "wait = 0.05"), {}, "M13.retry", "M13.retry", []),
     "stops_on_refusal": (FAST + p("outbox.py", "if exc.code in NON_RETRYABLE:", "if False:"), {},
                          "M13.refused", "M13.refused", []),
     "memory_outbox": (SLOW + p("outbox.py", "self._items.extend(sorted(found))", "self._items.extend([])"),
@@ -137,6 +159,11 @@ FAULTS: dict[str, tuple[list, dict, str, str, list[str]]] = {
                                  '{"pending": 0, "oldest_at": None}'), {}, "M14.outbox", "M14", []),
     "busy_loop": (p("recorder.py", "if self._stop.wait(self.game_check_s):", "if self._stop.is_set():"),
                   {}, "M15.cpu", "M15.cpu", []),
+    "spawns_per_check": (p("control.py", "game_check_s: float = 2.0", "game_check_s: float = 0.3")
+                         + p("game.py", "        return self.flag.exists()",
+                             "        __import__('subprocess').run([__import__('sys').executable, '-c', 'pass'],"
+                             " capture_output=True)\n        return self.flag.exists()"),
+                         {}, "M15.cpu", "M15.cpu", []),
     "normal_priority": ([NO_PRIORITY], {}, "M15.priority", "M15.priority", []),
     "no_log_folder": (FAST + p("main.py", 'log_dir / "control.log"', 'log_dir / "other.log"'), {},
                       "M16.logs", "M16.logs", []),
@@ -172,8 +199,9 @@ def faulty_skeleton(tmp: Path, patches: list[tuple[str, str, str]]) -> Path:
     return dest
 
 
-def run_fault(name: str, root: Path) -> tuple[int, dict]:
-    patches, changes, _expected, only, extra = FAULTS[name]
+def run_fault(name: str, root: Path, spec: tuple | None = None) -> tuple[int, dict]:
+    """Run the checker on the skeleton with `spec` (default: the fault `name`) applied."""
+    patches, changes, _expected, only, extra = spec or FAULTS[name]
     tmp = root / name
     tmp.mkdir()
     src = faulty_skeleton(tmp, patches)

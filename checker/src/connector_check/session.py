@@ -57,8 +57,12 @@ def accepted(entries: list[Entry], kind: str) -> list[Entry]:
 
 
 def layouts(entries: list[Entry]) -> dict[tuple[str, str], float | None]:
+    """The length of every layout a catalog declared. Pass every entry of the run: a catalog is
+    declared once per connection, so it may come before the session, or be a repeat."""
     out: dict[tuple[str, str], float | None] = {}
-    for e in accepted(entries, "catalog"):
+    for e in entries:
+        if e.method != "pitwall.write.catalog" or e.error is not None:
+            continue
         for row in e.params.get("layouts") or []:
             out[(row.get("track_id"), row.get("layout_id"))] = row.get("length_m")
     return out
@@ -73,11 +77,11 @@ def decoded(lap: Entry) -> dict[str, list[float]]:
 
 
 def eligible(laps: list[Entry], length_m: float) -> list[Lap]:
-    """Flying, valid, timed laps with channels, as sanity checks them."""
+    """Flying, not invalidated, timed laps with channels, as sanity checks them."""
     out = []
     for e in laps:
         p = e.params
-        if p.get("lap_type") == "flying" and p.get("valid") is True and p.get("time_s") \
+        if p.get("lap_type") == "flying" and p.get("valid") is not False and p.get("time_s") \
                 and p.get("channels"):
             out.append(Lap(decoded(e), length_m, float(p["time_s"]), p.get("fuel_start_l"),
                            p.get("fuel_used_l"), name=f"lap {p.get('seq')}"))

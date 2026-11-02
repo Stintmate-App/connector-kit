@@ -54,9 +54,10 @@ def identity_problems(desc: dict[str, Any], path: Path) -> list[str]:
 
 
 def uninstall_problems(desc: dict[str, Any]) -> list[str]:
+    """Problems with the uninstall command; none when the descriptor declares none."""
     cmd = desc.get("uninstall")
     if cmd is None:
-        return ["no 'uninstall' key"]
+        return []
     if not isinstance(cmd, list) or not cmd or not all(isinstance(x, str) for x in cmd):
         return ["'uninstall' is not an array of strings"]
     if not is_absolute(cmd[0]):

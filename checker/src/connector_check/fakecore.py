@@ -186,21 +186,29 @@ class FakeCore:
         return bool(pred())
 
     def call(self, name: str, params: Any = None, timeout: float = 10.0) -> Any:
-        """Ask a connector's service something (the core relays `connector.live_frame` so)."""
+        """Ask a connector's service something (the core relays `connector.live_frame` so): the
+        newest connection that declares the method, since a connector may have several."""
         with self.lock:
-            peer = self.peers[-1] if self.peers else None
-        if peer is None:
+            peers = list(self.peers)
+        if not peers:
             raise RuntimeError("no connector is connected")
+        declaring = [p for p in peers if name in set(p.decl.methods)]
+        peer = declaring[-1] if declaring else peers[-1]
         return peer.call(name, params if params is not None else {}, timeout=timeout)
 
     def offered(self) -> tuple[set[str], set[str]] | None:
-        """The methods and channels the connected connector declares, or None when none is."""
+        """The methods and channels the connector's connections declare together, or None when
+        none is connected."""
         with self.lock:
-            peer = self.peers[-1] if self.peers else None
-        if peer is None:
+            peers = list(self.peers)
+        if not peers:
             return None
-        decl = peer.decl
-        return set(decl.methods), set(decl.channels)
+        methods: set[str] = set()
+        channels: set[str] = set()
+        for peer in peers:
+            methods |= set(peer.decl.methods)
+            channels |= set(peer.decl.channels)
+        return methods, channels
 
     def dump(self, path: str | Path) -> None:
         """Every call, to read back."""

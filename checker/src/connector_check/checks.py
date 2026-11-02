@@ -73,6 +73,7 @@ CHECKS: list[Check] = [
           features=True),
     Check("F.capture_target", "Declared capture target is offered", "features", features=True),
     Check("F.brake_cues", "Declared brake cues stream is offered", "features", features=True),
+    Check("M5.parent", "Carries on when the managing process ends", "quit"),
     Check("M5.stranger", "A stranger cannot make a managed app quit", "quit"),
     Check("M5.quit", "The managing process makes it quit within 20 s", "quit"),
 ]
@@ -191,7 +192,10 @@ def static_checks(ctx: Ctx) -> None:
     else:
         rep.passed("M1.identity", f"id {desc['id']}, endpoint {desc['endpoint']}")
     problems = desc_mod.uninstall_problems(desc)
-    if problems:
+    if desc.get("uninstall") is None:
+        rep.manual("M17.uninstall", "not declared: fine for a development checkout; a connector "
+                   "that an installer put there declares how to remove it")
+    elif problems:
         rep.failed("M17.uninstall", "; ".join(problems))
     else:
         rep.passed("M17.uninstall", desc["uninstall"][0])
@@ -204,6 +208,7 @@ def child_env(ctx: Ctx) -> dict[str, str]:
     folder and an AppData of its own, so nothing reaches the user's real ones."""
     tmp: Path = ctx.scratch["tmp"]
     env = dict(os.environ)
+    env.pop("STINTMATE_WORKSPACE", None)          # the connector gets its workspace from --workspace
     env[ctx.args.instance_env] = ctx.tag
     for name, sub in (("STINTMATE_CONNECTORS_DIR", "descriptors"), ("APPDATA", "appdata")):
         (tmp / sub).mkdir(exist_ok=True)
@@ -280,6 +285,11 @@ def attach(ctx: Ctx, first: bool = False) -> bool:
                 rep.skip_group(["M19.instance"], "the connector did not run")
     if not ok:
         return False
+    if first:                                 # managed, a service waits for the managing app
+        time.sleep(0.5)
+        ctx.scratch["running_at_start"] = [
+            s.get("id") for s in (ctx.link.latest or {}).get("services", [])
+            if isinstance(s, dict) and s.get("running")]
     start_services(ctx)
     return True
 
@@ -533,6 +543,9 @@ def service_checks(ctx: Ctx) -> None:
     if not need_boot(ctx, ["M5.services", "M5.managed"]):
         return
     problems = []
+    for sid in ctx.scratch.get("running_at_start", []):
+        problems.append(f"{sid} was already running when the managing process connected: managed, "
+                        "it waits for control.service.start")
     for svc in ctx.descriptor.get("services", []):
         sid = svc.get("id")
         for verb, want in (("stop", False), ("start", True)):
@@ -567,11 +580,47 @@ def service_checks(ctx: Ctx) -> None:
         rep.failed("M5.managed", f"control.managed: {exc!r}")
 
 
+def judge_parent(ctx: Ctx) -> None:
+    """A second managing process adopts the connector and ends: the connector must carry on on its
+    own, and say so. Then the real one adopts it again, for the checks that follow."""
+    rep = ctx.report
+    folder = ctx.scratch["tmp"] / "second-parent"
+    folder.mkdir(exist_ok=True)
+    parent = process.Helper(ctx.control_pipe, ctx.key, folder, child_env(ctx))
+    try:
+        ctx.link.call("control.managed", {"parent_pid": parent.pid})
+        if ctx.link.wait_for(lambda s: s.get("parent_pid") == parent.pid, 5.0) is None:
+            rep.failed("M5.parent", "control.managed did not make the state follow the new parent")
+            return
+        parent.proc.kill_tree()
+        alone = ctx.link.wait_for(lambda s: s.get("managed") is False, 15.0)
+        time.sleep(1.0)
+        if not ctx.proc.alive():
+            rep.failed("M5.parent", "exited when the managing process ended: it carries on alone")
+        elif alone is None:
+            rep.failed("M5.parent", "control.state still says managed 15 s after the managing "
+                                    "process ended")
+        else:
+            rep.passed("M5.parent", "managed became false and the process kept running")
+    except Exception as exc:  # noqa: BLE001
+        rep.failed("M5.parent", f"control.managed: {exc!r}")
+    finally:
+        parent.proc.kill_tree()
+    if ctx.proc.alive():
+        try:
+            ctx.link.call("control.managed", {"parent_pid": ctx.helper.pid})
+            ctx.link.wait_for(lambda s: s.get("parent_pid") == ctx.helper.pid, 5.0)
+        except Exception as exc:  # noqa: BLE001
+            log.info("adopting the managing process again: %r", exc)
+
+
 @group("quit")
 def quit_checks(ctx: Ctx) -> None:
     rep = ctx.report
-    if not need_boot(ctx, ["M5.stranger", "M5.quit"]):
+    if not need_boot(ctx, ["M5.parent", "M5.stranger", "M5.quit"]):
         return
+    if rep.wants("M5.parent"):
+        judge_parent(ctx)
     try:
         ctx.link.call("control.quit")
         rep.failed("M5.stranger", "a caller that is neither the parent nor its child made a "
@@ -625,6 +674,9 @@ def restart_core(ctx: Ctx, pause: float = 0.0) -> None:
     ctx.core.start()
 
 
+REFUSALS = ("unauthorized", "bad_request", "busy", "connector_busy")   # the core's closing codes
+
+
 @group("link")
 def link_checks(ctx: Ctx) -> None:
     rep, core = ctx.report, ctx.core
@@ -674,7 +726,7 @@ def link_checks(ctx: Ctx) -> None:
     if not pitwall_state(ctx, "connected", 15.0):
         state_problems.append("not 'connected' within 15 s of Pitwall coming back")
     # A refusal: the state says refused, and the connector tries again.
-    for code in ("unauthorized", "connector_busy"):
+    for code in REFUSALS:
         hellos = len(core.hellos)
         core.bye_while(code)
         restart_core(ctx)
@@ -682,11 +734,8 @@ def link_checks(ctx: Ctx) -> None:
         retried = core.wait(lambda: len(core.hellos) >= hellos + 2, 30.0)
         core.bye_while(None)
         back = pitwall_state(ctx, "connected", 40.0)
-        if code == "unauthorized" and not refused:
-            state_problems.append("bye 'unauthorized' did not show 'refused'")
-        if code == "connector_busy" and ctx.link.latest.get("pitwall") == "connected" \
-                and not refused and not retried:
-            state_problems.append("bye 'connector_busy' still showed 'connected'")
+        if not refused:
+            state_problems.append(f"bye {code!r} did not show 'refused'")
         if not retried:
             state_problems.append(f"no new attempt after bye {code!r}")
         if not back:
@@ -694,8 +743,8 @@ def link_checks(ctx: Ctx) -> None:
     if state_problems:
         rep.failed("M9.state", "; ".join(state_problems))
     else:
-        rep.passed("M9.state", "waiting, connected, refused (unauthorized, connector_busy) and "
-                               "retried")
+        rep.passed("M9.state", "waiting, connected, refused (" + ", ".join(REFUSALS)
+                   + ") and retried")
 
 
 # ---- texts (M18) ---------------------------------------------------------------------------
@@ -707,8 +756,16 @@ def text_checks(ctx: Ctx) -> None:
         return
     try:
         doc = ctx.link.call("control.catalog.get")
+    except RemoteError as exc:
+        if exc.code == "unknown_method":
+            rep.manual("M18.texts", "control.catalog.get is not served: the texts stay in the "
+                       "connector's own language, English; check that no text is in a language "
+                       "you cannot translate")
+        else:
+            rep.failed("M18.texts", f"control.catalog.get answered {exc.code!r}")
+        return
     except Exception as exc:  # noqa: BLE001
-        rep.failed("M18.texts", f"no control.catalog.get ({exc!r}): texts cannot come from a pack")
+        rep.failed("M18.texts", f"control.catalog.get: {exc!r}")
         return
     catalog = doc.get("catalog") if isinstance(doc, dict) and "catalog" in doc else doc
     messages = catalog.get("messages") if isinstance(catalog, dict) else None
@@ -805,8 +862,12 @@ def session_checks(ctx: Ctx) -> None:
                               "game_running became true")
     elif (core.last_status() or {}).get("game_running") is not False:
         rep.failed("M8.game", "game_running is not false after the game closed")
+    elif not any(v.get("phase") == "on_track" for t, v in statuses if t >= t_on):
+        rep.failed("M8.game", "connector.status never showed phase 'on_track' in the session: the "
+                              "hub refuses to replace a connector in that phase")
     else:
-        rep.passed("M8.game", "false, then true before the first write, then false")
+        rep.passed("M8.game", "false, then true before the first write, then false; phase "
+                              "'on_track' in the session")
 
     starts = sess.accepted(entries, "session_start")
     if not done or not starts:
@@ -838,7 +899,8 @@ def judge_session(ctx: Ctx, entries: list[Any], start: Any) -> None:
     if refused:
         problems.append(f"Pitwall refused {refused[0].kind}: {refused[0].error} "
                         f"{refused[0].message}")
-    lay = sess.layouts(entries)
+    with ctx.core.lock:
+        lay = sess.layouts(list(ctx.core.log))        # a catalog may predate this session
     no_len = [f"{k[1]}" for k, v in lay.items() if not isinstance(v, (int, float)) or v <= 0]
     if not lay or no_len:
         problems.append("a layout has no length_m: " + ", ".join(no_len or ["(no catalog)"]))
@@ -858,13 +920,22 @@ def judge_session(ctx: Ctx, entries: list[Any], start: Any) -> None:
     if not timed:
         lap_problems.append("no flying lap with a time_s")
     for e in laps:
-        p = e.params
-        miss = [f for f in ("valid", "sim_lap", "on_track", "lap_type") if f not in p]
-        if miss:
-            lap_problems.append(f"lap {p.get('seq')} lacks {', '.join(miss)}")
-        if p.get("lap_type") != "flying" and p.get("time_s") is not None:
-            lap_problems.append(f"lap {p.get('seq')} ({p.get('lap_type')}) carries time_s "
-                                f"{p.get('time_s')}: untimed laps leave it out")
+        if "lap_type" not in e.params:
+            lap_problems.append(f"lap {e.params.get('seq')} lacks lap_type")
+    # lap_type must agree with the pit exits: the lap that ended before one ended in the pits, the
+    # lap that follows one began there. The other fields are checked by the schema when sent.
+    marks = sorted(sess.accepted(entries, "lap") + sess.accepted(entries, "pit_exit"),
+                   key=lambda e: e.n)
+    marks = [e for e in marks if e.params.get("session_key") == key]
+    for before, after in zip(marks, marks[1:]):
+        if before.kind == "pit_exit" and after.kind == "lap" \
+                and after.params.get("lap_type") == "flying":
+            lap_problems.append(f"lap {after.params.get('seq')} follows a pit_exit but is "
+                                "'flying': it began in the pits, so 'out'")
+        if before.kind == "lap" and after.kind == "pit_exit" \
+                and before.params.get("lap_type") == "flying":
+            lap_problems.append(f"lap {before.params.get('seq')} was written before a pit_exit "
+                                "but is 'flying': it ended in the pits, so 'in'")
     if lap_problems:
         rep.failed("M10.laps", "; ".join(lap_problems[:3]))
     else:
@@ -908,9 +979,9 @@ def judge_keys(ctx: Ctx) -> None:
     problems = []
     if any(not e.ik for e in calls):
         problems.append("a write without an idempotency key")
-    wrong = [e.ik for e in calls if e.ik and not e.ik.startswith(f"{cid}/")]
+    wrong = [e.ik for e in calls if e.ik and not e.ik.startswith(cid)]
     if wrong:
-        problems.append(f"key {wrong[0]!r} does not start with '{cid}/'")
+        problems.append(f"key {wrong[0]!r} does not start with the connector id '{cid}'")
     seen: dict[str, set[tuple[str, str]]] = {}
     for e in calls:
         if e.ik:
@@ -921,12 +992,17 @@ def judge_keys(ctx: Ctx) -> None:
     if problems:
         rep.failed("M13.keys", "; ".join(problems))
     else:
-        rep.passed("M13.keys", f"{len(seen)} distinct keys, all start '{cid}/', stable on repeat")
+        rep.passed("M13.keys", f"{len(seen)} distinct keys, all start '{cid}', stable on repeat")
 
 
 # ---- retryable and refused writes (M13) ----------------------------------------------------
 
 RETRYABLE = ("busy", "writer_busy", "timeout", "shutting_down", "unavailable", "connector_busy")
+INVENTED = "zz_future_code"            # a code nobody knows: "anything else" keeps the write
+KEPT = (*RETRYABLE, INVENTED)
+REFUSED_CODES = ("bad_request", "session_closed", "unknown_session", "too_large",
+                 "unknown_method", "version_unsupported")
+RETRY_MS = 300
 
 
 @group("retry")
@@ -940,9 +1016,10 @@ def retry_checks(ctx: Ctx) -> None:
         return
     sess.settle(ctx)
     base, ended = core.mark(), core.ended_count
-    for code in RETRYABLE:
-        core.refuse_next(code, retry_ms=100)
-    core.refuse_next("bad_request", method="pitwall.write.lap")
+    for code in KEPT:
+        core.refuse_next(code, retry_ms=RETRY_MS)
+    for code in REFUSED_CODES:                     # one lap each, as many laps as the session has
+        core.refuse_next(code, method="pitwall.write.lap")
     sess.game_on(ctx)
     done = sess.wait_end(ctx, ended, min(ctx.args.session_timeout, 180.0))
     sess.game_off(ctx)
@@ -951,7 +1028,7 @@ def retry_checks(ctx: Ctx) -> None:
     writes = [e for e in entries if e.method.startswith("pitwall.write.")]
     problems = []
     for e in writes:
-        if e.error in RETRYABLE:
+        if e.error in KEPT:
             later = [x for x in writes if x.n > e.n and x.ik == e.ik]
             if not later:
                 twin = [x for x in writes if x.n > e.n and x.method == e.method
@@ -960,26 +1037,34 @@ def retry_checks(ctx: Ctx) -> None:
                                 + ("sent again under a new key" if twin else "dropped"))
             elif later[0].method != e.method or digest(later[0].params) != digest(e.params):
                 problems.append(f"the retry of {e.kind} changed its content")
+            elif later[0].t - e.t < RETRY_MS / 1000 - 0.05:
+                problems.append(f"{e.kind} refused with {e.error!r} and retry_ms {RETRY_MS} was "
+                                f"sent again after {later[0].t - e.t:.2f} s")
     if not done:
         problems.append("the session did not end: the writes after a refusal never came")
     if problems:
         rep.failed("M13.retry", "; ".join(dict.fromkeys(problems)))
     else:
-        rep.passed("M13.retry", "kept and sent again with the same key after " + ", ".join(RETRYABLE))
-    bad = [e for e in writes if e.error == "bad_request" and e.method.endswith(".lap")
-           and e.message == "scripted"]
-    if not bad:
+        rep.passed("M13.retry", "kept and sent again with the same key, not before retry_ms, "
+                   "after " + ", ".join(KEPT))
+    scripted = [e for e in writes if e.error in REFUSED_CODES and e.method.endswith(".lap")
+                and e.message == "scripted"]
+    if not scripted:
         rep.failed("M13.refused", "the connector never sent the lap that was to be refused")
         return
-    ik = bad[0].ik
-    again = [e for e in writes if e.ik == ik]
-    after = [e for e in writes if e.n > bad[0].n and e.error is None and e.ik != ik]
-    if len(again) > 1:
-        rep.failed("M13.refused", "a refused (bad_request) write was sent again")
+    repeated = [f"{e.error} (lap {e.params.get('seq')})" for e in scripted
+                if len([x for x in writes if x.ik == e.ik]) > 1]
+    last = max(e.n for e in scripted)
+    after = [e for e in writes if e.n > last and e.error is None]
+    if repeated:
+        rep.failed("M13.refused", "a refused write was sent again: " + ", ".join(repeated))
     elif not after or not done:
-        rep.failed("M13.refused", "the writes after the refused one never arrived")
+        rep.failed("M13.refused", "the writes after the refused ones never arrived")
     else:
-        rep.passed("M13.refused", f"not repeated; {len(after)} later writes accepted")
+        tried = [e.error for e in scripted]
+        rep.passed("M13.refused", f"not repeated after {', '.join(tried)}; {len(after)} later "
+                   "writes accepted" + (f" ({len(REFUSED_CODES) - len(tried)} codes not tried: the "
+                                        "session has too few laps)" if len(tried) < 6 else ""))
 
 
 # ---- the outbox (M14) ----------------------------------------------------------------------
@@ -1046,14 +1131,17 @@ def outbox_checks(ctx: Ctx) -> None:
     time.sleep(3.0)
     count = sess.pending(ctx)
     ctx.scratch.pop("boot_failed", None)
+    after_kill = core.mark()
     restarted = restart(ctx)
     core.start()
     if not restarted:
         rep.failed("M14.outbox", "the connector did not start again after the kill")
         return
-    replayed = core.wait(lambda: len([e for e in core.since(base) if e.error is None
+    # A write Pitwall accepted just as it stopped is in first_ik, and its resend is a replay.
+    replayed = core.wait(lambda: len([e for e in core.since(after_kill) if e.error is None
                                       and e.method.startswith("pitwall.write.")
-                                      and e.ik not in first_ik]) >= max(1, count), 60.0)
+                                      and (e.ik not in first_ik or e.replayed)]) >= max(1, count),
+                         60.0)
     emptied = ctx.link.wait_for(lambda s: s.get("outbox", {}).get("pending") == 0, 30.0)
     if not replayed or emptied is None:
         rep.failed("M14.outbox", f"{count} writes were pending at the kill; after the restart "
@@ -1088,7 +1176,8 @@ def cpu_checks(ctx: Ctx) -> None:
     if m.above_normal:
         rep.failed("M15.priority", "not below normal priority: " + ", ".join(m.above_normal))
     else:
-        rep.passed("M15.priority", f"{m.processes} processes, all below normal or idle")
+        rep.passed("M15.priority", f"{m.processes} processes; every one that used 0.1 s of CPU "
+                   f"or more is below normal or idle ({m.unjudged} used less and were not judged)")
 
 
 # ---- declared features (--level features) ---------------------------------------------------

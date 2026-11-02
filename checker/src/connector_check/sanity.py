@@ -82,8 +82,8 @@ def pedals_range(lap: Lap) -> tuple[str, str]:
             return BAD, f"{name} is {min(v):.2f}..{max(v):.2f}, not 0..1 (percent?)"
     if max(th) <= 0.5:
         return BAD, f"throttle never above 0.5 (max {max(th):.2f})"
-    if max(br) <= 0.05:
-        return BAD, f"brake never above 0.05 (max {max(br):.2f})"
+    if max(br) <= 0.05:             # a flat-out lap (an oval) may have none: a note, not a failure
+        return MANUAL, f"brake never above 0.05 (max {max(br):.2f}): fine on a lap with no braking"
     return OK, ""
 
 
