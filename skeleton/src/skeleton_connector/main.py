@@ -21,6 +21,7 @@ from stintmate_ipc import EndpointInUse, find_workspace
 
 from . import CONNECTOR_ID, MUTEX, dev_tag
 from .control import ControlApp
+from .texts import load_pack
 
 ERROR_ALREADY_EXISTS = 183
 BELOW_NORMAL_PRIORITY_CLASS = 0x4000
@@ -88,6 +89,7 @@ def main(argv: list[str] | None = None) -> int:
             log.warning("No Stintmate workspace found; retrying in 5 s")
             time.sleep(5.0)
             workspace = find_workspace()
+        load_pack(workspace)                          # the user's language, read once
         app = ControlApp(workspace, managed=args.managed, parent_pid=args.parent_pid)
         app.start()
         log.info("Serving %s (managed=%s)", app.pipe, app.managed)
