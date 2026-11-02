@@ -14,24 +14,29 @@ reads it), on unique pipe names:
 from __future__ import annotations
 
 import json
+import logging
+import math
 import os
 import re
 import shutil
 import subprocess
-import threading
+import sys
 import time
-import uuid
+from array import array
 from pathlib import Path
 
 import pytest
-from stintmate_ipc import (Endpoint, KeyFile, PeerInfo, PipeNotFound, RemoteError, connect)
+from stintmate_ipc import (KeyFile, PeerInfo, PipeNotFound, RemoteError, connect, pipe_path,
+                           pipe_user)
 from stintmate_ipc.check.cli import main as ipc_check
 
 import skeleton_connector as S
 from skeleton_connector.control import ControlApp
-from skeleton_connector.main import parse
-from skeleton_connector.recorder import SCRIPT, Recorder
+from skeleton_connector.main import parse, setup_logging
+from skeleton_connector.recorder import Recorder
+from skeleton_connector.session import SCRIPT, TRACK_LENGTH_M, channels
 from skeleton_connector.texts import ACTIONS, ANNOUNCEMENTS, GUIDANCE, WINDOW, sha12, t
+from support import pipe, wait
 
 ROOT = Path(__file__).resolve().parents[1]
 # Names from the contract documents.
@@ -48,101 +53,17 @@ TOPICS = {"setup", "capture", "telemetry", "session", "car", "track", "tyres", "
           "strategy", "controls", "other"}
 
 
-def _pipe(what: str) -> str:
-    return rf"\\.\pipe\stintmate-test-skeleton-{what}-{uuid.uuid4().hex[:12]}"
-
-
-def _wait(cond, timeout: float = 10.0) -> bool:
-    end = time.monotonic() + timeout
-    while time.monotonic() < end:
-        if cond():
-            return True
-        time.sleep(0.02)
-    return False
-
-
-@pytest.fixture
-def workspace(tmp_path):
-    """A temporary workspace with the key the hub's onboarding leaves."""
-    ws = tmp_path / "Stintmate"
-    (ws / "ipc").mkdir(parents=True)
-    key = os.urandom(32)
-    (ws / "ipc" / "key").write_text(key.hex() + "\n", encoding="ascii")
-    return ws, key
-
-
-class FakePitwall:
-    """The ``pitwall`` endpoint as the documents describe it: it answers the calls a connector
-    makes, refuses a write without an idempotency key, and records everything."""
-
-    def __init__(self, key: bytes) -> None:
-        self.pipe = _pipe("pitwall")
-        self.calls: list[tuple[str, dict]] = []
-        self.hellos: list[PeerInfo] = []
-        self.ended = threading.Event()
-        self._exits = 0
-        ep = Endpoint(PeerInfo("pitwall", name="Pitwall (fake)", version="0.0.0"), key,
-                      pipe=self.pipe)
-        ep.on_connect = self._connected
-        for kind in ("catalog", "session_start", "lap", "pit_exit", "session_end"):
-            ep.method(f"pitwall.write.{kind}", self._write(kind), ordered=True, idempotent=True)
-        for name in ("pitwall.catalog.declare", "pitwall.guidance.declare", "pitwall.actions.declare",
-                     "pitwall.announce"):
-            ep.method(name, self._record(name), idempotent=name != "pitwall.announce")
-        self.ep = ep.start()
-
-    def _connected(self, peer) -> None:
-        self.hellos.append(peer.info)
-        self.peer = peer
-
-    def call_connector(self, method: str, params: dict):
-        """Call the connector as the core relays an action."""
-        return self.peer.call(method, params, timeout=10)
-
-    def _record(self, name):
-        def run(ctx, params):
-            self.calls.append((name, params))
-            return {"ok": True}
-        return run
-
-    def _write(self, kind):
-        def run(ctx, params):
-            if not ctx.idempotency_key:
-                raise RemoteError("bad_request", "a write needs an idempotency key")
-            self.calls.append((f"pitwall.write.{kind}", {**params, "_ik": ctx.idempotency_key}))
-            if kind == "pit_exit":
-                self._exits += 1
-                return {"ok": True, "stint": self._exits, "new_stint": self._exits > 1}
-            if kind == "lap":
-                return {"ok": True, "lap": params["seq"], "lap_id": params["seq"], "stint": 1}
-            if kind == "session_end":
-                self.ended.set()
-            return {"ok": True}
-        return run
-
-    def named(self, name: str) -> list[dict]:
-        return [p for n, p in self.calls if n == name]
-
-    def stop(self) -> None:
-        self.ep.stop()
-
-
-@pytest.fixture
-def pitwall(workspace):
-    fake = FakePitwall(workspace[1])
-    try:
-        yield fake
-    finally:
-        fake.stop()
-
-
 # ------------------------------------------------------------------ the recorder -> Pitwall
 
 def test_the_recorder_writes_a_session_as_the_protocol_says(workspace, pitwall):
     ws, _ = workspace
-    rec = Recorder(pitwall.pipe, KeyFile(ws / "ipc" / "key"), lap_period_s=0)
+    rec = Recorder(pitwall.pipe, KeyFile(ws / "ipc" / "key"), ws, lap_period_s=0,
+                   game_check_s=0.05)
     rec.start()
     try:
+        game = ws / "connectors" / S.CONNECTOR_ID / "fake_game"
+        game.parent.mkdir(parents=True, exist_ok=True)
+        game.touch()
         assert pitwall.ended.wait(15), "the session was not written"
     finally:
         rec.stop()
@@ -179,7 +100,7 @@ def test_the_recorder_writes_a_session_as_the_protocol_says(workspace, pitwall):
         assert "stint" not in p                          # Pitwall decides stints (11.1)
         assert p["on_track"] is True and isinstance(p["valid"], bool)
         assert p["sim_lap"] == p["seq"]
-        assert {"t", "dist", "speed"} <= set(p["channels"])
+        assert {"t", "dist", "speed", "throttle", "brake", "g_lat", "x", "z"} <= set(p["channels"])
         assert p["channels"]["t"]["encoding"] == "f32"
         assert p["_ik"] == f"skeleton/{key}/lap/{p['seq']}"
         # time_s only when the simulator timed the lap, never 0 or -1
@@ -217,10 +138,11 @@ def test_the_declared_texts_follow_the_rules():
 def test_no_key_is_reported_and_never_created(workspace, pitwall):
     ws, _ = workspace
     (ws / "ipc" / "key").unlink()
-    rec = Recorder(pitwall.pipe, KeyFile(ws / "ipc" / "key"), lap_period_s=0)
+    rec = Recorder(pitwall.pipe, KeyFile(ws / "ipc" / "key"), ws, lap_period_s=0,
+                   game_check_s=0.05)
     rec.start()
     try:
-        assert _wait(lambda: "key file not found" in (rec.message or ""))
+        assert wait(lambda: "key file not found" in (rec.message or ""))
         assert rec.state == "waiting" and not (ws / "ipc" / "key").exists()
     finally:
         rec.stop()
@@ -231,10 +153,11 @@ def test_no_key_is_reported_and_never_created(workspace, pitwall):
 @pytest.fixture
 def control(workspace, pitwall):
     ws, _ = workspace
-    pipe = _pipe("control")
-    app = ControlApp(ws, pipe=pipe, pitwall_pipe=pitwall.pipe, lap_period_s=0).start()
+    name = pipe("control")
+    app = ControlApp(ws, pipe=name, pitwall_pipe=pitwall.pipe, lap_period_s=0,
+                     game_check_s=0.05).start()
     try:
-        yield pipe, app, ws
+        yield name, app, ws
     finally:
         app.stop()
 
@@ -252,7 +175,7 @@ def test_the_control_profile_as_a_hub_sees_it(control, pitwall):
         assert set(hub.decl.methods) <= CONTROL_REQUIRED | CONTROL_OPTIONAL
         states: list = []
         hub.subscribe("control.state", lambda ev: states.append(ev.data))
-        assert _wait(lambda: states and states[-1])
+        assert wait(lambda: states and states[-1])
         state = states[-1]
         assert (COMMON_STATE | CONNECTOR_STATE) <= set(state)
         assert state["app"] == "skeleton-connector" and state["window"] in ("shown", "hidden")
@@ -267,11 +190,11 @@ def test_the_control_profile_as_a_hub_sees_it(control, pitwall):
         assert service["refusal"] is None
 
         # Standalone, the app starts its recorder itself; the hub's stop and start follow.
-        assert _wait(lambda: states[-1]["services"][0]["running"] is True)
+        assert wait(lambda: states[-1]["services"][0]["running"] is True)
         assert hub.call("control.service.stop", {"service": "recorder"}) == {
             "service": "recorder", "state": "stopped"}
-        assert _wait(lambda: states[-1]["services"][0]["state"] == "stopped")
-        assert hub.call("control.service.start", {"service": "recorder"})["state"] == "running"
+        assert wait(lambda: states[-1]["services"][0]["state"] == "stopped")
+        assert hub.call("control.service.start", {"service": "recorder"})["state"] == "waiting"
         with pytest.raises(RemoteError) as bad:
             hub.call("control.service.start", {"service": "nope"})
         assert bad.value.code == "bad_request"
@@ -279,7 +202,7 @@ def test_the_control_profile_as_a_hub_sees_it(control, pitwall):
         me = os.getpid()
         assert hub.call("control.managed", {"parent_pid": me}) == {"managed": True,
                                                                    "parent_pid": me}
-        assert _wait(lambda: states[-1]["managed"] is True and states[-1]["parent_pid"] == me)
+        assert wait(lambda: states[-1]["managed"] is True and states[-1]["parent_pid"] == me)
 
         got = hub.call("control.catalog.get", {})
         assert got["rev"] == sha12(got["catalog"]) and got["catalog"]["catalog"] == WINDOW["catalog"]
@@ -290,7 +213,7 @@ def test_the_control_profile_as_a_hub_sees_it(control, pitwall):
 
 def test_a_managed_start_leaves_the_delegable_service_to_the_hub(workspace, pitwall):
     ws, _ = workspace
-    app = ControlApp(ws, pipe=_pipe("control"), pitwall_pipe=pitwall.pipe, managed=True,
+    app = ControlApp(ws, pipe=pipe("control"), pitwall_pipe=pitwall.pipe, managed=True,
                      parent_pid=os.getpid(), lap_period_s=0).start()
     try:
         assert app.recorder is None and app.build_state()["services"][0]["running"] is False
@@ -314,7 +237,7 @@ def test_control_quit_ends_the_process_and_the_pipe(control):
         except (PipeNotFound, Exception):  # noqa: BLE001 - not reachable either way
             return True
         return False
-    assert _wait(gone)
+    assert wait(gone)
 
 
 def test_the_control_endpoint_passes_stintmate_ipc_check(control, capsys):
@@ -378,7 +301,7 @@ def test_install_writes_the_descriptor_the_hub_reads(tmp_path):
 def test_it_imports_no_stintmate_app():
     banned = re.compile(r"^\s*(?:from|import)\s+(stintmate_hub|pitwall|ams2_connector|"
                         r"stintmate_voice)\b", re.M)
-    for path in list((ROOT / "src").rglob("*.py")) + list((ROOT / "tests").rglob("*.py")):
+    for path in [p for sub in ("src", "tests", "examples") for p in (ROOT / sub).rglob("*.py")]:
         assert not banned.search(path.read_text(encoding="utf-8")), path
     deps = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     # only stintmate-ipc, from a path: the release wheel in vendor/; never a path into a
@@ -451,10 +374,11 @@ def test_the_declared_actions_follow_the_rules():
 
 def test_the_recorder_serves_test_ping_through_a_test_core(workspace, pitwall):
     ws, _ = workspace
-    rec = Recorder(pitwall.pipe, KeyFile(ws / "ipc" / "key"), lap_period_s=0)
+    rec = Recorder(pitwall.pipe, KeyFile(ws / "ipc" / "key"), ws, lap_period_s=0,
+                   game_check_s=0.05)
     rec.start()
     try:
-        assert _wait(lambda: pitwall.named("pitwall.actions.declare"))
+        assert wait(lambda: pitwall.named("pitwall.actions.declare"))
         spec = ACTIONS[0]
         answer = pitwall.call_connector("connector.action",
                                         {"code": "test.ping", "data": spec["example"],
@@ -468,3 +392,173 @@ def test_the_recorder_serves_test_ping_through_a_test_core(workspace, pitwall):
         assert e.value.code == "unknown_action"
     finally:
         rec.stop()
+
+
+# ------------------------------------------------------------------ the game and the link
+
+def _fake_game(ws) -> Path:
+    flag = ws / "connectors" / S.CONNECTOR_ID / "fake_game"
+    flag.parent.mkdir(parents=True, exist_ok=True)
+    return flag
+
+
+def _recorder(ws, pitwall, period=0.0):
+    return Recorder(pitwall.pipe, KeyFile(ws / "ipc" / "key"), ws, lap_period_s=period,
+                    game_check_s=0.05)
+
+
+def test_the_recorder_links_with_the_game_closed(workspace, pitwall):
+    ws, _ = workspace
+    rec = _recorder(ws, pitwall)
+    rec.start()
+    try:
+        assert wait(lambda: rec.state == "connected" and pitwall.hellos)
+        time.sleep(0.5)                                  # a game check or ten
+        assert rec.state == "connected" and rec.status.value["game_running"] is False
+        assert pitwall.kinds() == [] and not rec.recording
+        assert rec.outbox.summary()["pending"] == 0
+    finally:
+        rec.stop()
+
+
+def test_a_session_plays_when_the_game_appears(workspace, pitwall):
+    ws, _ = workspace
+    rec = _recorder(ws, pitwall)
+    seen = []
+    put = rec.outbox.put
+    rec.outbox.put = lambda *a: (seen.append(rec.status.value["game_running"]), put(*a))
+    rec.start()
+    try:
+        _fake_game(ws).touch()
+        assert pitwall.ended.wait(15)
+    finally:
+        rec.stop()
+    assert seen and all(seen)                            # game_running was set before any write
+    assert pitwall.kinds()[:2] == ["catalog", "session_start"]
+    assert pitwall.kinds()[-1] == "session_end"
+
+
+def test_a_session_closes_when_the_game_goes(workspace, pitwall):
+    ws, _ = workspace
+    rec = _recorder(ws, pitwall, period=0.3)
+    rec.start()
+    try:
+        flag = _fake_game(ws)
+        flag.touch()
+        assert wait(lambda: "session_start" in pitwall.kinds())
+        flag.unlink()
+        assert pitwall.ended.wait(15)
+        assert wait(lambda: rec.status.value["game_running"] is False)
+    finally:
+        rec.stop()
+    assert pitwall.kinds()[-1] == "session_end"
+    assert len(pitwall.named("pitwall.write.lap")) < 6   # the script was cut short
+
+
+def _decode(ch) -> list[float]:
+    values = array("f")
+    values.frombytes(ch["data"])
+    return list(values)
+
+
+@pytest.mark.parametrize("lap_s", sorted({s[2] for s in SCRIPT if s[2]} | {60.0}))
+def test_the_laps_carry_the_minimum_channels(lap_s):
+    """The sanity rules a checker applies to a timed lap: units, signs and lengths."""
+    ch = {k: _decode(v) for k, v in channels(lap_s).items()}
+    assert {"t", "dist", "speed", "throttle", "brake", "g_lat", "x", "z"} <= set(ch)
+    n = len(ch["t"])
+    assert n == 200 and all(len(v) == n for v in ch.values())
+    assert all(a < b for a, b in zip(ch["t"], ch["t"][1:])) and abs(ch["t"][-1] - lap_s) < 1
+    assert ch["dist"][0] < 0.02 * TRACK_LENGTH_M
+    assert abs(ch["dist"][-1] - TRACK_LENGTH_M) < 0.05 * TRACK_LENGTH_M
+    assert all(a <= b for a, b in zip(ch["dist"], ch["dist"][1:]))
+    for pedal in ("throttle", "brake"):
+        assert -0.01 <= min(ch[pedal]) and max(ch[pedal]) <= 1.01
+    assert max(ch["throttle"]) > 0.5 and max(ch["brake"]) > 0.05
+    mean = sum(ch["speed"]) / n
+    assert 0 < min(ch["speed"]) and max(ch["speed"]) <= 500
+    assert abs(mean - 3.6 * TRACK_LENGTH_M / lap_s) < 0.2 * mean            # km/h, not m/s
+    g = sorted(abs(v) for v in ch["g_lat"])
+    assert 0.2 <= g[int(0.99 * (n - 1))] <= 8                              # g, not m/s2
+    pairs = [(s, g_) for s, g_, v in zip(ch["steer"], ch["g_lat"], ch["speed"])
+             if abs(s) > 0.05 and v > 30]
+    ms, mg = (sum(p[i] for p in pairs) / len(pairs) for i in (0, 1))
+    cov = sum((s - ms) * (g_ - mg) for s, g_ in pairs)
+    var = math.sqrt(sum((s - ms) ** 2 for s, _ in pairs) * sum((g_ - mg) ** 2 for _, g_ in pairs))
+    assert cov / var > 0.3                                                 # same sign as steer
+    path = sum(math.dist((ch["x"][i], ch["z"][i]), (ch["x"][i + 1], ch["z"][i + 1]))
+               for i in range(n - 1))
+    assert abs(path - TRACK_LENGTH_M) < 0.05 * TRACK_LENGTH_M
+
+
+def test_a_refused_connection_shows_refused(workspace, pitwall):
+    ws, _ = workspace
+    rec = Recorder(pitwall.pipe, os.urandom(32), ws, lap_period_s=0, game_check_s=0.05)
+    rec.start()
+    try:
+        assert wait(lambda: rec.state == "refused") and rec.refused == "unauthorized"
+    finally:
+        rec.stop()
+
+
+def test_a_stranger_cannot_quit_a_managed_app(workspace, pitwall):
+    ws, _ = workspace
+    helper = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        stranger = ControlApp(ws, pipe=pipe("control"), pitwall_pipe=pitwall.pipe,
+                              managed=True, parent_pid=helper.pid, lap_period_s=0).start()
+        parent = ControlApp(ws, pipe=pipe("control"), pitwall_pipe=pitwall.pipe,
+                            managed=True, parent_pid=os.getpid(), lap_period_s=0).start()
+        try:
+            hub = _hub(stranger.pipe, ws)
+            with pytest.raises(RemoteError) as e:
+                hub.call("control.quit", {})
+            assert e.value.code == "managed" and e.value.data == {"managed_by": helper.pid}
+            assert not stranger.exit.is_set()
+            hub.close()
+            hub = _hub(parent.pipe, ws)
+            assert hub.call("control.quit", {}) == {"exiting": True}     # its own parent
+            hub.close()
+            assert parent.exit.wait(5)
+        finally:
+            stranger.stop()
+            parent.stop()
+    finally:
+        helper.kill()
+        helper.wait(10)
+
+
+# ------------------------------------------------------------------ logs and the dev instance
+
+def test_first_run_creates_the_log_folder(tmp_path):
+    folder = tmp_path / "Stintmate" / "connectors" / S.CONNECTOR_ID
+    handler = setup_logging(folder)
+    try:
+        logging.getLogger("skeleton_connector").info("hello")
+        handler.flush()
+        assert (folder / "control.log").read_text(encoding="utf-8").count("hello") == 1
+    finally:
+        logging.getLogger().removeHandler(handler)
+        handler.close()
+
+
+def test_the_log_is_capped(tmp_path):
+    handler = setup_logging(tmp_path)
+    try:
+        for _ in range(3000):
+            logging.getLogger("skeleton_connector").info("x" * 1000)
+    finally:
+        logging.getLogger().removeHandler(handler)
+        handler.close()
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["control.log", "control.log.1",
+                                                          "control.log.2"]
+    assert all(p.stat().st_size <= 1_001_100 for p in tmp_path.iterdir())
+
+
+def test_the_dev_instance_separates_the_pipes(monkeypatch):
+    monkeypatch.delenv("STINTMATE_DEV_INSTANCE")
+    assert S.dev_tag() is None and S.pipe("pitwall") == pipe_path("pitwall")
+    monkeypatch.setenv("STINTMATE_DEV_INSTANCE", "My Tag_1!" + "z" * 40)
+    assert S.dev_tag() == "mytag1" + "z" * 18
+    assert S.pipe("pitwall") == pipe_path("pitwall", user=f"{pipe_user()}-{S.dev_tag()}")
+    assert S.pipe("pitwall") != pipe_path("pitwall")
