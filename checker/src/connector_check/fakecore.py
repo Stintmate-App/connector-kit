@@ -40,6 +40,7 @@ class Entry:
     error: str | None = None        # the code the fake core answered, None when it accepted
     replayed: bool = False          # an ik seen before: the first answer was repeated
     connector: str = ""
+    message: str = ""
 
     @property
     def kind(self) -> str:
@@ -275,7 +276,7 @@ class FakeCore:
         return None
 
     def _fail(self, entry: Entry, code: str, message: str, retry_ms: int | None = None) -> None:
-        entry.error = code
+        entry.error, entry.message = code, message
         raise RemoteError(code, message, retry_ms=retry_ms)
 
     def _declare(self, name: str):
