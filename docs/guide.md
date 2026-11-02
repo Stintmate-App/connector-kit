@@ -211,33 +211,6 @@ skeleton for example, keeps those notices. When you bundle the `stintmate-ipc` w
 native DLL with your connector, ship the licence files that come with them. The terms of your
 own connector are yours to choose. This is a pointer, not legal advice.
 
-## Becoming an official connector
-
-The hub can also list your connector as an **official connector** and install it with one
-click: the Stintmate team adds a setup program to its catalog. For that the setup
-must honour the unattended contract: it accepts `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-/PROGRESS="<file>" /LOG="<file>"`; it appends to the progress file JSON lines with the stages
-(`prepare`, `replace`, `files` with `done` and `total` counts, `register`) and a last line with
-stage `done` carrying `ok`, `reason` and `installed` (that line is the authority, the exit
-status is the backup); it writes the descriptor ([descriptor.md](descriptor.md)) as its last step; and when it
-replaces a running connector it asks the hub to hold it (protocol section 1.2) instead of
-stopping it by itself. The AMS2 connector's installer is the worked example. Nothing else
-changes for a connector that is installed by hand.
-
-- **The catalog entry** has `id` (the descriptor's file name), names, `sim`, `version`, the
-  `installer` URL, `size`, `sha256`, and optionally `min_stintmate` (a Stintmate version: an
-  entry that asks for a newer one than the running Stintmate is listed but not offered),
-  `features` and `notes_url`. These `features` belong to the catalog entry; the descriptor's
-  `features` are a different list ([descriptor.md](descriptor.md)).
-- **The last line's `reason`** (when `ok` is false): the hub has a text of its own for
-  `connector_running`, `replace_failed`, `disk` and `register_failed`; with `register_failed`
-  and `installed` false it says the registration could not be read. Any other reason is shown
-  as you wrote it, with the path of the setup log; a missing one shows as `unknown`. Without a
-  last line the hub falls back to the exit status.
-- **Start menu.** The AMS2 setup adds a shortcut that never starts the connector by itself,
-  because it would run unmanaged next to the instance Stintmate starts: it opens Stintmate
-  instead. Do the same.
-
 ## The skeleton as the smallest example
 
 [`skeleton/`](../skeleton/README.md) is a complete

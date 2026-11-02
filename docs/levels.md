@@ -111,7 +111,6 @@ the descriptor's `features` ([descriptor.md](descriptor.md)).
 | Translated texts (`translated_texts`) | The connector in the user's language | `control.catalog.get` and a loader for the language packs | [catalogs.md](catalogs.md) |
 | Remembered services (`remembered_services`) | The state of each service kept across restarts | `delegable`, `default` and `refusal` on services, `control.services.desired` | The control app |
 | Options (`options`) | The user chooses behaviour | A settings file of its own | |
-| Official install (`official_install`) | One click in the managing app | A setup that follows the unattended contract | The official catalog |
 
 ## 7. Beyond
 

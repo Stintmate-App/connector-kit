@@ -134,9 +134,6 @@ mark it in the `services` of your control endpoint's `control.state` (see
 
 ### 1.2 Updating your connector while Stintmate runs
 
-(To be listed as an **official connector**, installed from the hub with one click, the setup
-also follows the unattended contract in the [guide](guide.md).)
-
 The Stintmate hub starts and supervises your connector. A setup that replaces its files while it
 runs has two options: ask the user to close Stintmate, or ask the hub to **hold** the connector
 for the length of the setup. Use the hold; keep the prompt only as the fallback when the hub

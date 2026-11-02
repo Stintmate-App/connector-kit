@@ -26,6 +26,8 @@ shared code, no files).
 
 ### `pitwall.connectors`
 
+Session, lap and stint events are the followed connector's; the sessions of the other connectors show in `pitwall.connectors.connectors[].recording`.
+
 The core and the connected connector (also the result of `pitwall.connectors.get`):
 `{core: {pid, version, run, started_at, workspace, data_dir}, connector: {id, name, version,
 sim, sim_name, connected_at, functions, services: [{service, pid, connected_at, status}],
