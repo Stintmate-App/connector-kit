@@ -11,6 +11,11 @@
 - New JSON Schemas: `docs/live-frame.schema.json` (with `docs/live-frame.sample.json`), `docs/control-state.schema.json` and `docs/descriptor.schema.json`. The live frame in a session requires `lap` and at least one participant with `is_player: true`.
 - The descriptor has two optional keys, `window` and `features`; `schema` stays 1.
 - `contract.json` has `contract_version` (2) and, under `vocabularies`, `control_pitwall`, `service_states`, `minimum_channels`, `position_channels` and `features`.
+- Many connectors may be linked at once; `connector_busy` is sent only by a Pitwall older than contract 2 and is retried like any other retryable code. `pitwall.connectors` gains `connectors` and `active`.
+- `contract.md` documents `hub.connector.hold` and `hub.connector.release` (also under `hub_methods` in `contract.json`); sections 4.7 and 4.8 became 4.5 and 4.6.
+- The live frame needs at least one participant with `is_player: true`; the docs say which channels each analysis needs (`throttle`, `brake` and `g_lat` for lap analysis, comparison and corners).
+- New in the guide: settings of a connector, the hub's launch timings, `--allow-synced`, what an official connector's setup reports, and licences. Protocol: the two odd cases of a closing game or a stopped connector, the conventional actions `test.ping` and `test.announce`, and write messages refusing unknown fields. `catalogs.md` lists suggested announcement codes.
+- Fixed: the README, `contract.md` and `data-model.md` said the release zip does not carry `contract.json`; it does.
 
 ## 0.1.5 (2026-11-01)
 

@@ -38,7 +38,7 @@ looks at files named `*.json`, so the temporary file of an atomic write is never
 | Field | Type | Meaning |
 |---|---|---|
 | `schema` | int, required | The descriptor's version, `1`. A higher one is shown as needing a newer Stintmate. |
-| `id` | string, required | The connector's id: the same as in its `hello` metadata (`connector_id`) and **equal to the file name without `.json`**; a descriptor whose `id` differs from its file name is ignored (logged). |
+| `id` | string, required | The connector's id: the same as in its `hello` metadata (`connector_id`) and **equal to the file name without `.json`**; a descriptor whose `id` differs from its file name is ignored (logged). It is also a file name and a folder name, so it matches `^[a-z0-9][a-z0-9_-]{0,31}$` (the pattern of the hello metadata and of [the schema](descriptor.schema.json)): none of `\ / : * ? " < > |` and no trailing dot. |
 | `name` | string, required | The connector's display name. |
 | `version` | string, required | The connector's version. |
 | `sim`, `sim_name` | string, recommended | The simulator as the connector names it (its hello metadata's `sim`, `sim_name`). The hub does not read them: shown by other tools, never branched on. |

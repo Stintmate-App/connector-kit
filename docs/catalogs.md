@@ -318,3 +318,18 @@ A file is skipped as a whole when it cannot be read (`unreadable`), is not a JSO
 (`language_mismatch`, against its folder) is wrong; `messages` that is not an object is
 `bad_schema`.
 
+## Suggested announcement codes
+
+A suggestion, not a rule: the codes, groups, priorities and slots below are those of the
+catalog of the AMS2 connector. A connector for another game picks the codes its game can detect.
+Guidance topics are listed in `contract.json` under `guidance_topics`.
+
+| Group | Codes (priority) | Slot |
+|---|---|---|
+| `flags` | `flag_yellow`, `flag_double_yellow` (critical, param `sector`); `flag_yellow_ahead`, `flag_double_yellow_ahead` (critical); `flag_red`, `flag_black_orange` (critical); `flag_blue`, `flag_blue_next`, `flag_blue_unknown`, `flag_slow_car`, `flag_slow_car_driver`, `flag_black_white`, `flag_track_limits`, `flag_yellow_self` (high); `flag_clear`, `flag_yellow_cause`, `flag_yellow_driver` (normal) | `local_flag` for the local-flag calls, `blue_flag` for the blue-flag calls |
+| `safety_car` | `fcy_start`, `fcy_restart`, `fcy_halt` (critical); `fcy_last_lap` (high); `fcy_pits_open`, `fcy_pits_lead_lap` (normal) | none |
+| `penalties` | `penalty_drive_through`, `penalty_stop_go` (high); `penalty_served` (normal) | none |
+| `race` | `disqualified`, `retired` (high); `final_lap`, `chequered`, `chequered_no_position` (normal) | none |
+| `rivals` | `rival_out`, `rival_disqualified` (low, param `driver`) | none |
+| `spotter` | `spotter_car_left`, `spotter_car_right`, `spotter_in_the_middle`, `spotter_still_*`, `spotter_clear_*`, `spotter_all_clear` (priority `spotter`) | `spotter` |
+| `test` | `radio_check` (low, spoken to the user), `engineer_test` (low, audience `agent`, param `text`) | none |

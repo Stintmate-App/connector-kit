@@ -475,3 +475,20 @@ read by a connector only for its own windows.
 4. At run time: `pitwall.announce {code: "flag_yellow", params: {sector: 2}}`: Pitwall composes
    `say` = "Bandera amarilla, sector dos." for a Spanish-speaking user, publishes it on
    `pitwall.announcements` and the radio speaks it.
+
+## 7. The hub's endpoint, `hub` (connector setup)
+
+A connector's setup program uses two methods of the managing app to stop the connector while it
+replaces its files ([connector-protocol.md section 1.2](connector-protocol.md#12-updating-your-connector-while-stintmate-runs)).
+Both are ordered. An answer `busy` carries `details.state`: `starting` or `exiting` (the managing app is not
+ready or is closing) or `busy` (it did not answer within 2 s).
+
+| Method | Params | Result | Errors |
+|---|---|---|---|
+| `hub.connector.hold` v1 | `{id, purpose?: "update" \| "uninstall" (default "update"), ttl_s?: int 30..1800 (default 300)}` | `{id, state: "held" \| "stopping", restart: bool, expires_in_s}` | `bad_request`; `not_found` (no such connector); `busy` with `details.recording` true (a driving session is being recorded) |
+| `hub.connector.release` v1 | `{id, start?: bool (default true)}` | `{id, released: bool, starting: bool}` | `bad_request` |
+
+A hold stops the connector and keeps it stopped until a release, the rewrite of its descriptor,
+the deadline, or the user's Start or Stop. Repeating a hold moves the deadline to the later one.
+Releasing starts the connector again with the descriptor's current launcher if it was wanted
+before; repeating a release is safe.

@@ -259,7 +259,10 @@ write API's `hello` is not sent: Pitwall builds it from `peer.meta`.
   contract 2 also answers `connector_busy` (`retry_ms` 10000) to a write while another connector
   is connected; the key is kept then as well.
 - **Refused writes**: `bad_request` with the write API's error in `msg` (it names the field)
-  and its reply in `details.reply`. Not retryable: nothing was stored, the session goes on.
+  and its reply in `details.reply`. Not retryable: nothing was stored, the session goes on. A write with a field the write API does
+  not define is refused the same way, naming the field (`unknown field`): put your own values in
+  `extra` or in `ext_` channels. In `connector.status`, the live frame and `control.state` unknown
+  fields are kept or ignored, never refused.
 
 ### 3.2 After a lap
 
@@ -626,6 +629,16 @@ and `log` are yours.
    for the agent. Pitwall logs one line per call (`Action <code> -> <id>: ok|<error> in <ms>
    ms ...`, never the data) and keeps the history for 30 days.
 
+#### Conventional action codes
+
+Two codes are a convention, so that the engineer's tools can test any connector the same way.
+Declare them (the AMS2 connector does) and answer these formats:
+
+| Code | Params | Result | Timeout |
+|---|---|---|---|
+| `test.ping` | `{say?: bool}` (default true: also play the connector's radio check) | `{pong: "pong", announced: bool, message_id?: str}` | 5 s |
+| `test.announce` | `{code: str, params?: [{name, value}] (at most 8, values as text), variant?: int 0..7}`; `code` is one of the connector's catalog codes | `{announced: bool, message_id?: str, refused?: str}` | 5 s |
+
 ### 5.3 Priority and maximum wait
 
 Two catalog fields tell the radio how urgent a message is and how long it stays worth saying.
@@ -958,6 +971,8 @@ not assume: measure it, and treat every row above as something to verify with yo
 | Race start | The laps before timing starts are `formation`, never timed. |
 | Very short laps (a drive-through glitch, a teleport right after the line) | The connector may drop laps under a minimum duration, and logs it. |
 | Session ends mid-lap | The lap is `flying` (or its type), not timed, stored as incomplete. |
+| The game closes with a session open | Close the open lap as incomplete and send `session_end`, both through the outbox. |
+| The connector is stopped (`control.quit`) with a session open | The same, within the 20 s `control.quit` allows. If it does not get that far, the session stays open and the next `session_start` closes it (section 3.1). |
 | Two flying laps with the same `sim_lap` in one session | Send both as they are; Pitwall's labels tell them apart by stint. |
 
 ### 11.5 Study the simulator before writing laps

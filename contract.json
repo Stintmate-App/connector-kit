@@ -90,6 +90,10 @@
         "control.state"
       ]
     },
+    "hub_methods": [
+      "hub.connector.hold",
+      "hub.connector.release"
+    ],
     "pitwall_events": [
       "pitwall.announcements",
       "pitwall.captures.changed",
