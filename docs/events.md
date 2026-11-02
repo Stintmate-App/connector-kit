@@ -37,7 +37,7 @@ declare (`connector.live_frame`, `connector.capture_target`, `connector.telemetr
 ([connector-protocol.md 2.1](connector-protocol.md#21-connectorstatus-state)); `recording` is
 the `pitwall.recording` value; `refused` the last 5 connections refused (a second connection of a service, a
 sim mismatch, a bad hello). `data_dir` (the core's data folder) and `connector.recording` are Pitwall's
-optional additions to the contract's payload. `connectors` lists every linked connector in connection order, each entry shaped like `connector` plus `game_running` and `active`; `active` is the id of the active connector or null; `connector` is the entry of the one Pitwall follows (the active one, else the last active one still linked, else the first linked), null only with nothing linked.
+optional additions to the contract's payload. `connectors` lists every linked connector in connection order, each entry shaped like `connector` plus `game_running` and `active`; `active` is the id of the active connector or null; `connector` is the entry of the one Pitwall follows (the active one, else the one followed before if it is still linked, else the first linked), null only with nothing linked.
 
 ### `pitwall.recording`
 

@@ -21,7 +21,7 @@ This kit carries no header and no binary. Download them directly from the stintm
 DLL and tool under `stintmate_ipc/_bin/`), is an asset of the release `v0.3.3` of the
 stintmate-ipc-python repository
 (https://github.com/Stintmate-App/stintmate-ipc-python/releases/tag/v0.3.3), with its own
-`SHA256SUMS`. Only Python connectors need it; `skeleton/fetch-ipc.ps1` downloads and verifies it
+`SHA256SUMS`. A Python connector needs it to run, and `connector-check` needs it for a connector in any language; `skeleton/fetch-ipc.ps1` downloads and verifies it
 into `skeleton/vendor/`, the environment variable `STINTMATE_IPC_RELEASE` replaces the source (a
 base URL or a local folder).
 

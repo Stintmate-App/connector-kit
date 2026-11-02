@@ -48,7 +48,7 @@ control endpoint. It lives in
   environment variable `STINTMATE_WORKSPACE`, then the `workspace` field of
   `%APPDATA%\Stintmate\settings.json` (`stintmate_ipc.find_workspace()` does the last two). The
   key is `<workspace>\ipc\key` (`stintmate_ipc.default_key_path()`; see [contract.md](contract.md)).
-  **A third-party connector only reads the key**: it never creates or replaces it (Stintmate's
+  **A connector only reads the key**: it never creates or replaces it (Stintmate's
   own apps create it when missing). While the workspace or the key is missing, say so in your
   log and retry; do not fail for good. Pitwall may not be running either: connect in the
   background and retry with the protocol's backoff. The library's client does it and
@@ -146,11 +146,17 @@ The bracket, run by your **setup** (never by the connector itself):
    connector (its `control.quit`), shows it as "Updating" and does not start it. The reply is
    `{id, state: "stopping" | "held", restart, expires_in_s}`: repeat the call (every 0.5 s)
    until `held`, then wait until your own mutexes are free. Repeating it refreshes the deadline.
+   The hub refuses a hold with `busy` and `details.recording` true while a session is being
+   recorded, and it reads that from `connector.status.phase` being `on_track` ([section
+   2.1](#21-connectorstatus-state)): a connector that never sets `phase` is stopped in the
+   middle of a session.
 2. Copy the files and **register** (rewrite your descriptor, [descriptor.md](descriptor.md)).
 3. **Release**: `hub.connector.release {id, start?: true}`. The reply is
    `{id, released, starting}`. The hub starts your connector from the **current** descriptor's
-   launcher. Release also when the install failed or was cancelled: the old build then starts
-   again. `released: false` (nothing was held) is not an error.
+   launcher. Release also when the install failed or was cancelled: the hub then starts the launcher
+   the descriptor names. If your update replaces the files in place and fails halfway, the old
+   build may be gone: say so to the user, exit with a non-zero code, and still release when you
+   can; when you cannot, the hold ends at its `ttl_s`. `released: false` (nothing was held) is not an error.
 
 ```python
 import time
@@ -633,7 +639,7 @@ Declare them (the AMS2 connector does) and answer these formats:
 
 | Code | Params | Result | Timeout |
 |---|---|---|---|
-| `test.ping` | `{say?: bool}` (default true: also play the connector's radio check) | `{pong: "pong", announced: bool, message_id?: str}` | 5 s |
+| `test.ping` | `{say?: bool}` (default true: also play the connector's radio check) | `{pong: "pong"}`, plus `announced: bool, message_id?: str` when it plays the radio check (declare them in the result format) | 5 s |
 | `test.announce` | `{code: str, params?: [{name, value}] (at most 8, values as text), variant?: int 0..7}`; `code` is one of the connector's catalog codes | `{announced: bool, message_id?: str, refused?: str}` | 5 s |
 
 ### 5.3 Priority and maximum wait

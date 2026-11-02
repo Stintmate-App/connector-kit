@@ -77,7 +77,7 @@ The hub runs `launcher` + `args` + the trailing options
 --workspace <workspace> --managed --parent-pid <hub pid>
 ```
 
-Your launcher must **tolerate these options** (parse them or ignore them). `--allow-synced` is also appended after `--workspace` when the workspace folder is synced and the user accepted that; without it, a connector may refuse a synced folder.
+Your launcher must **tolerate these options** (parse them or ignore them), and **ignore every option it does not know**: a later Stintmate may append more, and a parser that exits on an unknown option stops the connector from starting. `--allow-synced` is also appended after `--workspace` when the workspace folder is synced and the user accepted that; without it, a connector may refuse a synced folder.
 Behaviour expected:
 
 1. Hold the descriptor's `mutex` for as long as the control app runs; a second launch must not
@@ -92,7 +92,7 @@ Behaviour expected:
    the hub closes. It starts `launcher` with the launcher's own folder as the working
    directory; find your files from your executable's path, not from the working directory.
 
-5. The hub watches your launch with these timings (`supervisor.py` constants of the hub): a
+5. The hub watches your launch with these timings: a
    process that has not served its endpoint 60 s after launch is shown with a warning; a process
    that stops is started again after 1, 2, 4, 8, 16 and then 30 s; after 5 stops within 600 s
    the hub stops trying and shows the connector as failed.
@@ -113,7 +113,7 @@ Find the workspace from `--workspace` first, else `STINTMATE_WORKSPACE`, else th
 field of `%APPDATA%\Stintmate\settings.json`
 ([SPEC 4.3](https://github.com/Stintmate-App/stintmate-ipc/blob/main/SPEC.md#43-the-workspace);
 `stintmate_ipc.find_workspace()` does the last two). The key is `<workspace>\ipc\key`
-(`stintmate_ipc.default_key_path()`). **A third-party connector only reads the key**: it never
+(`stintmate_ipc.default_key_path()`). **A connector only reads the key**: it never
 creates or replaces it. While the workspace or key is missing, log it and retry; do not fail
 for good.
 
@@ -202,7 +202,7 @@ data.
 - [ ] Reads the key, never writes it; retries while workspace, key or Pitwall are missing.
 - [ ] Pitwall side per connector-protocol.md (hello, `connector.status`, writes).
 - [ ] Optional: catalogs declared in your own language; the hub translates them.
-- [ ] `connector-check` ([levels.md](levels.md) section 9, [checker/README.md](../checker/README.md)) reports no failure at the level you declare.
+- [ ] `connector-check` ([levels.md](levels.md) section 9, [checker/README.md](../checker/README.md)) reports no failure at the level you check.
 
 ## 11. Licences
 
