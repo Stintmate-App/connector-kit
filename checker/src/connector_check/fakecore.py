@@ -26,6 +26,8 @@ WRITES = ("catalog", "session_start", "lap", "pit_exit", "setup", "participant_l
 DECLARES = ("pitwall.catalog.declare", "pitwall.guidance.declare", "pitwall.actions.declare")
 SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 SIM = re.compile(r"^[a-z0-9_-]{1,32}$")
+# contract.json hello_meta.product.pattern; a run replaces it with the kit's own copy.
+PRODUCT_PATTERN = r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 SESSION_KEY = re.compile(r"^[0-9a-f]{16}$")
 
 
@@ -104,6 +106,7 @@ class FakeCore:
         self._refuse: deque[tuple[str, int | None, str | None]] = deque()
         self._bye: deque[str] = deque()
         self._bye_always: str | None = None
+        self.product_pattern = PRODUCT_PATTERN
         self._next_session = 0
         self._next_message = 0
         self.ep: Endpoint | None = None
@@ -221,7 +224,7 @@ class FakeCore:
     # ---- hello ----------------------------------------------------------------------------
 
     @staticmethod
-    def hello_problem(info: PeerInfo) -> str | None:
+    def hello_problem(info: PeerInfo, product_pattern: str = PRODUCT_PATTERN) -> str | None:
         """The rules of the core's hello for a connector, restated from the documents."""
         meta = info.meta or {}
         missing = [k for k in ("connector_id", "connector_name", "sim", "sim_name", "service")
@@ -233,6 +236,8 @@ class FakeCore:
                     f"peer.app ({info.app})")
         if not SIM.match(meta["sim"]):
             return "peer.meta.sim must match ^[a-z0-9_-]{1,32}$"
+        if not isinstance(meta.get("product"), str) or not re.match(product_pattern, meta["product"]):
+            return f"peer.meta.product {meta.get('product')!r} must be a lowercase UUID version 4"
         if info.process is not None and info.process != meta["service"]:
             return f"peer.process {info.process!r} differs from peer.meta.service"
         return None
@@ -245,7 +250,7 @@ class FakeCore:
         if code is not None:
             peer.close(code, "scripted")
             return
-        problem = self.hello_problem(info)
+        problem = self.hello_problem(info, self.product_pattern)
         if problem is not None:
             with self.lock:
                 self.bad_hellos.append(problem)

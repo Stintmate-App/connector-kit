@@ -37,6 +37,8 @@ the connector once and measures the CPU for `--cpu-seconds`.
 | `--report <file.json>` | Also write the result as JSON |
 | `--start-timeout 60` | Seconds to wait for `control.state` after the start |
 | `--link-seconds 30` | Seconds the link must hold with the game closed |
+| `--taken-seconds 65` | Seconds `M20.taken` watches the connector after `connector_id_taken` (at least 61) |
+| `--register-command <cmd>` | Your registration command, for `M20.registration` (a JSON array or a command line; `{connectors_dir}`, `{workspace}` and `{id}` are replaced). Without it the check stays `MANUAL` |
 
 With a fake game file for the skeleton, use `--fake-game-file "{workspace}\connectors\skeleton\fake_game"`.
 
@@ -96,6 +98,9 @@ then a summary with the `contract_version`, the declared features and what stays
 | `M4.transport`, `M4.state` | `stintmate-ipc-check server --fast` passes; `control.state` against its schema |
 | `M5.services`, `M5.managed`, `M5.parent`, `M5.stranger`, `M5.quit` | `control.service.stop` and `start` change `running`, and no service runs before the managing process asks; `control.managed` follows; when the managing process ends the connector keeps running and `managed` becomes false; a caller that is neither the parent nor its child is refused with `managed`; the parent's `control.quit` ends the tree within 20 s, with the pipe and the mutex gone |
 | `M8.hello`, `M9.link`, `M7.absent`, `M9.state` | The hello and `connector.status`; linked with the game closed and still linked; linked again after Pitwall comes back; `control.state.pitwall` is `waiting`, `connected`, and `refused` after `unauthorized`, `bad_request`, `busy` or `connector_busy`, with new attempts |
+| `M20.product` | `product` is in the hello and in the descriptor, a lowercase UUID version 4 (the pattern of `contract.json`), and equal in both. The fake Pitwall also closes a hello without a valid `product` with `bad_request` |
+| `M20.taken` | Planted fault: the fake Pitwall closes every connection with `connector_id_taken`. `control.state.pitwall` must be `refused`, and the connector must not connect again within 60 s of the refused attempt. It watches `--taken-seconds` (65 by default), so this check adds about a minute to a run; a connector that retries sooner fails at once. Mind your IPC client's jitter: a 60 s delay spread by 20 % can come back after 48 s |
+| `M20.registration` | Plants a descriptor of another `product` in a folder of its own in the temporary folder and runs `--register-command` with `STINTMATE_CONNECTORS_DIR`, `LOCALAPPDATA` and `APPDATA` aimed at the temporary folder. The command must exit non-zero and leave the descriptor byte for byte as it was. For the skeleton: `["powershell","-NoProfile","-ExecutionPolicy","Bypass","-File","skeleton\\install.ps1","-Destination","{workspace}\\registered"]` |
 | `M18.texts` | A language pack made by the checker from `control.catalog.get` reaches the service names and labels. A connector that does not serve `control.catalog.get` (`unknown_method`) stays `MANUAL`: its texts stay in English |
 | `M6.recorder`, `M8.game` | The service `recorder` is `waiting`, then `recording`; `game_running` is false, true before the first write, false again; `connector.status` shows `phase` `on_track` in the session |
 | `M10.order`, `M10.laps`, `M11.channels`, `M12.sanity`, `M13.keys`, `M16.logs` | The session as the write API and the data model say; the sanity rules of [levels.md](../docs/levels.md) section 9; every key starts with the connector's id and is stable; the descriptor's logs exist |

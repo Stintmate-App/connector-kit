@@ -14,6 +14,10 @@ from stintmate_ipc import pipe_path, pipe_user
 CONNECTOR_ID = "skeleton"                 # folder name, hello meta, endpoint suffix
 CONNECTOR_NAME = "Skeleton connector"
 CONNECTOR_VERSION = "1.0.0"               # keep equal to pyproject.toml
+# Generate the product key ONCE for your own connector, with [guid]::NewGuid() in PowerShell, keep it
+# in every version, and never copy another connector's. A UUID version 4, lowercase. This one is
+# the skeleton's example: install.ps1 holds the same value.
+PRODUCT = "6f1c2a84-3b7e-4d59-9a0c-5e8d7b2f1a43"
 SIM = "skeletonsim"                       # ^[a-z0-9_-]{1,32}$
 SIM_NAME = "Skeleton Simulator"
 APP_ID = f"connector-{CONNECTOR_ID}"      # peer.app, and the control endpoint's id

@@ -68,6 +68,11 @@ find you; write it when you install and remove it when you uninstall. Your data 
   `install.ps1` is one way; no managing app calls any registration command of yours and none is
   required.
 - Only you write the file, atomically; the hub never does and ignores unknown keys.
+- `product` is your connector's key (a UUID version 4 you generate once and never change). Your
+  setup must not overwrite a descriptor that holds another `product`, and your uninstaller
+  removes the file only when `launcher` and `product` are both yours. Why, and how to choose
+  `sim`: [connectors.md section 7](connectors.md#7-several-connectors-for-one-game), *Several
+  connectors for one game*.
 
 ## 3. Being started and adopted
 
@@ -197,6 +202,7 @@ data.
 - [ ] The launcher accepts `--workspace`, `--managed`, `--parent-pid` (and `--allow-synced`).
 - [ ] It ships everything it needs (own runtime or Python environment in its folder).
 - [ ] Single-instance `mutex` held while the control app runs.
+- [ ] `product` generated once, equal in the descriptor and in the hello metadata, never changed.
 - [ ] Endpoint `connector-<id>` serves the required profile; `stintmate-ipc-check server` passes.
 - [ ] `control.quit` ends the process within 20 s; managed mode follows the parent pid.
 - [ ] Reads the key, never writes it; retries while workspace, key or Pitwall are missing.

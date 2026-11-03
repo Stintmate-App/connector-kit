@@ -31,6 +31,7 @@ connector sends or receives:
 | `connector_disconnected` | Pitwall has no connector connected. | later |
 | `not_implemented_by_connector` | The connected connector does not declare that method or channel; `details` `{connector, sim, sim_name, method}`. | no |
 | `connector_busy` | Sent only by a Pitwall older than contract 2 (in `bye` or as a write's answer, see 4.1), while another connector id was connected. | 10 s, like any retryable code |
+| `connector_id_taken` | A connector id was first seen with another `product`, or one linked connection of the id already names another `product` (in `bye`; its message names the id and the product it was first seen with). | 60 s; final until the user acts |
 | `writer_busy` | Pitwall's database is held by another writer (an import); nothing stored. **Does not consume the idempotency key.** | `retry_ms` |
 | `engineer_only` | The method is for the engineer's tool server; another peer called it. | no |
 | `unknown_action` | The connected connector did not declare that action code (`details` `{connector, codes}`); also what a connector answers for a code it no longer serves. | no |
@@ -120,7 +121,7 @@ oldest_at: str \| null}` and `start_with_app: [str]` (used only when the connect
 |---|---|---|
 | `connected` | At least one running service has its connection open | nothing |
 | `waiting` | No connection now and none refused: Pitwall absent, reconnecting, key missing, or every service off | "cannot reach Pitwall" only when the core is down and a service runs |
-| `refused` | The last connection was closed for a reason a retry will not fix: `unauthorized`, `bad_request`, `busy`, or `connector_busy` from an older Pitwall | held error notice |
+| `refused` | The last connection was closed for a reason a retry will not fix: `unauthorized`, `bad_request`, `busy`, `connector_id_taken`, or `connector_busy` from an older Pitwall | held error notice |
 
 | `services[].state` | Meaning | Hub |
 |---|---|---|
@@ -160,11 +161,11 @@ Served by Pitwall's core, the only writer of the database. Heartbeat 5000 ms.
 
 | Peer | `peer.app` | `peer.process` | `peer.meta` |
 |---|---|---|---|
-| a connector process | `connector-<id>` | the service name | REQUIRED `{connector_id: str, connector_name: str, sim: str, sim_name: str, service: str}` (`connector_id` = `<id>`; `sim` `^[a-z0-9_-]{1,32}$`) |
+| a connector process | `connector-<id>` | the service name | REQUIRED `{connector_id: str, connector_name: str, sim: str, sim_name: str, service: str, product: str}` (`connector_id` = `<id>`; `sim` `^[a-z0-9_-]{1,32}$`; `product` a lowercase UUID version 4) |
 
 The **connector registry**: every connector id may be linked at once, one connection per
 service, every connection of a connector names the same `sim` (a second connection of a service
-gets `bye` `busy`, a different `sim` gets `bad_request`). A connector is **linked** while any of
+gets `bye` `busy`, a different `sim` or a missing or malformed `product` gets `bad_request`, and a `product` that differs from the one first seen for the id, or from another linked connection's, gets `connector_id_taken`). A connector is **linked** while any of
 its connections is open; its **functions** are the union of what its connections declare
 (`connector.live_frame`, `connector.capture_target`, `connector.telemetry`). Liveness is the
 connection (no status heartbeat). One linked connector is **active**: the first whose

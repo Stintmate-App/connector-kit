@@ -134,12 +134,20 @@ def test_the_documented_descriptor_validates():
     assert list(validator("descriptor").iter_errors(example)) == []
 
 
-@pytest.mark.parametrize("key", ["schema", "id", "name", "version", "launcher", "args",
+@pytest.mark.parametrize("key", ["schema", "id", "name", "product", "version", "launcher", "args",
                                  "control_protocol", "endpoint", "mutex", "services"])
 def test_a_descriptor_needs_its_required_keys(key):
     example = descriptor_example()
     del example[key]
     assert list(validator("descriptor").iter_errors(example))
+
+
+def test_a_descriptor_refuses_a_product_that_is_not_a_uuid_v4():
+    for value in ("", "not-a-uuid", "6F1C2A84-3B7E-4D59-9A0C-5E8D7B2F1A43",
+                  "6f1c2a84-3b7e-3d59-9a0c-5e8d7b2f1a43", "6f1c2a84-3b7e-4d59-1a0c-5e8d7b2f1a43"):
+        example = descriptor_example()
+        example["product"] = value
+        assert list(validator("descriptor").iter_errors(example)), value
 
 
 def test_a_descriptor_refuses_another_control_protocol_schema_and_id():
@@ -151,7 +159,7 @@ def test_a_descriptor_refuses_another_control_protocol_schema_and_id():
 
 def test_the_contract_json_carries_the_new_keys():
     contract = load(ROOT / "contract.json")
-    assert contract["contract_version"] == 2
+    assert contract["contract_version"] == 3
     assert contract["budgets"] == {"idle_cpu_percent_of_core": 0.5, "idle_sample_s": 60,
                                    "game_check_min_interval_s": 2}
     assert contract["write_errors"]["non_retryable"] == [
@@ -165,6 +173,18 @@ def test_the_contract_json_carries_the_new_keys():
             "recording", "running"} == set(vocab["service_states"])
     assert len(vocab["features"]) == len(set(vocab["features"])) == 20
     assert not {"budgets", "write_errors", "contract_version"} & set(contract["limits"])
+
+
+def test_the_contract_json_carries_the_product_key_and_its_close_code():
+    contract = load(ROOT / "contract.json")
+    pattern = contract["hello_meta"]["product"]["pattern"]
+    assert pattern == "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    assert contract["hello_meta"]["product"]["required"] is True
+    assert "connector_id_taken" in contract["error_codes"]
+    # the descriptor schema asks for the same pattern, and the document lists the close code
+    assert validator("descriptor").schema["properties"]["product"]["pattern"] == pattern
+    assert "connector_id_taken" in (DOCS / "contract.md").read_text(encoding="utf-8")
+    assert "M20 |" in (DOCS / "levels.md").read_text(encoding="utf-8")
 
 
 def test_the_channel_vocabulary_holds_the_minimum_and_position_channels():

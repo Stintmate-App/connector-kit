@@ -8,6 +8,7 @@
     "schema": {"const": 1, "description": "The descriptor's version."},
     "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"},
     "name": {"type": "string", "minLength": 1},
+    "product": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", "description": "The connector's product key, equal to the hello metadata's."},
     "version": {"type": "string", "minLength": 1},
     "sim": {"type": "string"},
     "sim_name": {"type": "string"},
@@ -32,6 +33,6 @@
     "written_at": {"type": "string"},
     "written_by": {"type": "string"}
   },
-  "required": ["schema", "id", "name", "version", "launcher", "args", "control_protocol",
+  "required": ["schema", "id", "name", "product", "version", "launcher", "args", "control_protocol",
                "endpoint", "mutex", "services"]
 }

@@ -24,7 +24,8 @@ KEY16 = "0123456789abcdef"
 
 def info(meta=None, app="connector-demo", process="recorder"):
     meta = {"connector_id": "demo", "connector_name": "Demo", "sim": "demosim",
-            "sim_name": "Demo", "service": "recorder"} if meta is None else meta
+            "sim_name": "Demo", "service": "recorder",
+            "product": "6f1c2a84-3b7e-4d59-9a0c-5e8d7b2f1a43"} if meta is None else meta
     return PeerInfo(app, name="Demo", version="1", process=process, meta=meta)
 
 
@@ -163,3 +164,14 @@ def test_layouts_come_from_every_catalog_the_run_saw(tmp_path):
                Entry(1, 0.0, "pitwall.write.catalog", "demo/d", CATALOG, error="busy")]
     assert session.layouts(entries) == {("ring", "full"): 1000.0}
     assert session.layouts(entries[1:]) == {}
+
+
+def test_hello_rules_need_a_valid_product():
+    good = info().meta
+    for bad in (None, "", "6F1C2A84-3B7E-4D59-9A0C-5E8D7B2F1A43",           # missing, empty, upper case
+                "6f1c2a84-3b7e-3d59-9a0c-5e8d7b2f1a43",                     # version 3
+                "6f1c2a84-3b7e-4d59-0a0c-5e8d7b2f1a43", "not-a-uuid"):      # variant 0, no uuid
+        meta = {**good, "product": bad}
+        if bad is None:
+            del meta["product"]
+        assert "product" in FakeCore.hello_problem(info(meta=meta)), bad

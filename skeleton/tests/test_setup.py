@@ -278,3 +278,60 @@ def test_install_uninstall_and_update_in_a_temp_folder(shell, tmp_path, workspac
     done = powershell("-Uninstall", env=run_env)
     assert done.returncode == 0, done.stderr + done.stdout
     assert target.exists() and not dest.exists()
+
+
+@pytest.mark.parametrize("shell", SHELLS)
+def test_install_never_overwrites_another_connectors_descriptor(shell, tmp_path):
+    machine = tmp_path / "descriptors"
+    dest = tmp_path / "Programs" / "Skeleton Connector"
+    target = machine / "skeleton.json"
+    env = {**os.environ, "STINTMATE_CONNECTORS_DIR": str(machine)}
+
+    def run(*extra):
+        return subprocess.run([shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                               str(ROOT / "install.ps1"), "-Destination", str(dest), *extra],
+                              capture_output=True, text=True, timeout=180, env=env, cwd=tmp_path)
+
+    done = run("-SkipInstall")
+    assert done.returncode == 0, done.stderr + done.stdout
+    ours = json.loads(target.read_text(encoding="utf-8"))
+    assert ours["product"] == S.PRODUCT
+    assert run("-SkipInstall").returncode == 0                  # the same product: replaced
+
+    # another connector took the id: the install fails, names it and changes nothing
+    other = {**ours, "name": "Another connector", "product": "0b7e2d3c-9f41-4a6e-8c15-d2a4f6e81b90"}
+    target.write_text(json.dumps(other), encoding="utf-8")
+    before = target.read_bytes()
+    done = run("-SkipInstall")
+    assert done.returncode == 1
+    assert "Another connector" in done.stderr and "taken" in done.stderr
+    assert target.read_bytes() == before
+    done = run("-SkipInstall", "-Update")
+    assert done.returncode == 1 and target.read_bytes() == before
+
+
+@pytest.mark.parametrize("shell", SHELLS)
+def test_uninstall_removes_the_descriptor_only_when_launcher_and_product_are_its_own(shell, tmp_path):
+    machine = tmp_path / "descriptors"
+    dest = tmp_path / "Programs" / "Skeleton Connector"
+    target = machine / "skeleton.json"
+    env = {**os.environ, "STINTMATE_CONNECTORS_DIR": str(machine)}
+
+    def run(*extra):
+        return subprocess.run([shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                               str(ROOT / "install.ps1"), "-Destination", str(dest), *extra],
+                              capture_output=True, text=True, timeout=180, env=env, cwd=tmp_path)
+
+    assert run("-SkipInstall").returncode == 0
+    # our launcher, another product: the file stays
+    d = json.loads(target.read_text(encoding="utf-8"))
+    d["product"] = "0b7e2d3c-9f41-4a6e-8c15-d2a4f6e81b90"
+    target.write_text(json.dumps(d), encoding="utf-8")
+    assert run("-Uninstall").returncode == 0
+    assert target.exists() and not dest.exists()
+    # our product and our launcher: the file goes
+    assert run("-SkipInstall").returncode == 1                  # still the other product's
+    target.unlink()
+    assert run("-SkipInstall").returncode == 0
+    assert run("-Uninstall").returncode == 0
+    assert not target.exists() and not dest.exists()
