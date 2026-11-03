@@ -112,7 +112,7 @@ FAULTS: dict[str, tuple[list, dict, str, str, list[str]]] = {
                          "        pass  ") + p("recorder.py", "        self._session_stop.clear()",
                                                 "        self._session_stop.clear(); self.client.start()"),
                        {}, "M9.link", "M9.link", []),
-    "never_refused": (p("recorder.py", 'REFUSED = ("unauthorized", "bad_request", "busy", "connector_busy")',
+    "never_refused": (p("recorder.py", 'REFUSED = ("unauthorized", "bad_request", "busy", "connector_busy", "connector_id_taken")',
                         "REFUSED = ()"), {}, "M9.state", "M9.state", []),
     "no_length": (FAST + p("session.py", '"length_m": TRACK_LENGTH_M}]}', '"length_m": None}]}'),
                   {}, "M10.order", "M10.order", []),
