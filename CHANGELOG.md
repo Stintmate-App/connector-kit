@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 (unreleased)
+## 0.3.0 (2026-11-03)
 
 - **The protocol changed (`contract_version` 3).** Every connector now has a product key, `product`: a UUID version 4, lowercase, with hyphens, that you generate once and never change.
   - The hello metadata has a new required field, `product`; a missing or malformed one is closed with `bad_request`. `connector-protocol.md` section 1 and `contract.md` section 4.1 say so.
