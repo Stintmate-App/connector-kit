@@ -44,8 +44,9 @@ log = logging.getLogger("skeleton_connector.recorder")
 REFUSED = ("unauthorized", "bad_request", "busy", "connector_busy", "connector_id_taken")
 GAME_CHECK_S = 2.0                     # the most often the game may be checked
 # After `connector_id_taken` another connector owns this id: retrying at once only fights it, so
-# the wait is at least this long whatever the IPC client's own policy says.
-ID_TAKEN_WAIT_S = 60.0
+# the wait is at least 60 s whatever the IPC client's own policy says. The client spreads every
+# delay by +-20 %, so the delay asked for is 60 / 0.8 = 75 s: the shortest real wait is 60 s.
+ID_TAKEN_WAIT_S = 75.0
 
 
 class _Client(Client):
