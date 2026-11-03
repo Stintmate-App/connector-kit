@@ -11,7 +11,11 @@
 - `contract.json` has `contract_version` 3, `hello_meta.product` with its pattern, and `connector_id_taken` under `error_codes`.
 - New guide section, "Several connectors for one game" (`connectors.md` section 7, linked from the guide): several connectors can run for one game and each records its own sessions; the cost of your connector is yours to keep low; choosing a `sim` is choosing a data namespace, so share one only with identical ids; how to make and keep the product key. `data-model.md` says what Stintmate records about the connectors behind the catalog and the sessions.
 - The skeleton connector has `PRODUCT` in its config (a fixed example UUID to replace once with `[guid]::NewGuid()`), sends it in the hello, writes it in the descriptor, shows `refused` after `connector_id_taken`, and its `install.ps1` refuses to overwrite a descriptor with another product (naming that connector) and removes the descriptor on `-Uninstall` only when `launcher` and `product` are its own.
-- The checker's version number follows the kit's (0.3.0).
+- The checker's version number follows the kit's (0.3.0). Its fake Pitwall closes a hello without a valid `product` with `bad_request`, and three checks are new:
+  - `M20.product`: `product` is valid and equal in the hello and the descriptor.
+  - `M20.taken`: the fake Pitwall closes with `connector_id_taken`; the connector must show `refused` and not connect again within 60 s. It watches 65 s (`--taken-seconds`).
+  - `M20.registration`: your registration command (`--register-command`) must refuse to overwrite a descriptor of another product; without the option the check is `MANUAL`.
+- The skeleton waits at least 60 s before it connects again after `connector_id_taken`, whatever the IPC client's own backoff.
 
 ## 0.2.0 (2026-11-03)
 

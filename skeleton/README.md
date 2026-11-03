@@ -87,7 +87,8 @@ reads nothing. Your `Game.running()` takes the file's place.
    the descriptor both carry it. `install.ps1` refuses to overwrite a descriptor that holds
    another `product` (it names that connector and changes nothing), and `-Uninstall` leaves such
    a file alone. When Pitwall closes the connection with `connector_id_taken`, the control state
-   shows `refused`, as for the other refused codes. See
+   shows `refused`, as for the other refused codes, and the recorder waits at least 60 s before
+   it connects again (the IPC client spreads its delays by 20 %, so the skeleton asks for 75 s). See
    [connectors.md section 7](../docs/connectors.md#7-several-connectors-for-one-game). Stintmate installs
    nothing for you and provides no Python.
 3. **Being started.** The hub runs the launcher with `--workspace <w> --managed --parent-pid

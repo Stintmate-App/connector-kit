@@ -165,7 +165,11 @@ random `STINTMATE_DEV_INSTANCE` tag (M19), so it runs beside a real Stintmate wi
 uv run --project <kit>\checker connector-check --descriptor <file> [--level minimum|features]
 ```
 
-- **`--level minimum`** (default) runs every automatic check of M1 to M20 (section 2).
+- **`--level minimum`** (default) runs every automatic check of M1 to M20 (section 2). The M20
+  checks are the product key in the hello and the descriptor, a planted `connector_id_taken` that
+  your connector must show as `refused` and not retry within 60 s (the run takes about a minute
+  longer for it; `--taken-seconds` sets how long it watches), and your registration command
+  (`--register-command`) refusing to overwrite a descriptor of another product.
 - **`--level features`** also checks each name in the descriptor's `features` that it can: that the
   names are known (`F.names`), and that a declared `announcements`, `guidance` or `actions`
   reached the fake Pitwall (`test.ping` is called). The other features of section 6 are not checked.
