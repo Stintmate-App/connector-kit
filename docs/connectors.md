@@ -57,7 +57,7 @@ Before writing code, find (and write down in the connector's own docs, with how 
 
 - `sim`: a short lowercase id for the simulator (`acc`, `rf2`, `iracing`...), the same in every
   run, matching `^[a-z0-9_-]{1,32}$` (the connector id: `^[a-z0-9][a-z0-9_-]{0,31}$`); `sim_name`: its display name. Both go in the hello
-  metadata (`connector_id`, `connector_name`, `sim`, `sim_name`, `service`).
+  metadata (`connector_id`, `connector_name`, `sim`, `sim_name`, `service`, `product`).
 - **Catalogue**: send a `catalog` before the session that uses a car or a layout (repeat it
   whenever you see a new one; it upserts). Give `length_m` for layouts and `fuel_capacity_l`
   (the tank) for cars when known: the fuel plan uses it.
@@ -126,11 +126,11 @@ backoff and re-subscribes after every reconnect.
 > process exists and before the first write of a session.
 
 **Hello.** `peer.app` `connector-<id>`, `peer.process` the service, and `peer.meta`
-`{connector_id, connector_name, sim, sim_name, service}`. A `bye` with `busy` (the same
+`{connector_id, connector_name, sim, sim_name, service, product}`. A `bye` with `busy` (the same
 service is connected) closes the connection: log it and retry later. A Pitwall older than
 contract 2 also closes with `connector_busy` when another connector is connected, and answers a
 write with it (`retry_ms` 10000): treat it like any retryable code. A hello whose metadata is missing a field, or whose `connector_id` is not
-the slug of `peer.app`, or whose `sim` is not a slug, gets `bad_request`.
+the slug of `peer.app`, or whose `sim` is not a slug, or whose `product` is missing or not a UUID version 4, gets `bad_request`.
 
 **Writing.** Each write API message goes as one method, `pitwall.write.<type>`, with the
 message's fields (no `type`), the session's `session_key` (16 random hex digits chosen by the
@@ -220,3 +220,25 @@ for a Python connector, and a copy of [`skeleton/`](../skeleton/README.md) as a 
 6. **In the car**: one practice session; check laps, stints and times against the simulator's
    own timing screen, and the connector's state in the Stintmate hub and through the engineer's
    `connector_status` tool.
+
+## 7. Several connectors for one game
+
+Stintmate lets several connectors run for the same game. Each one records its own sessions, and
+the user sees which connector recorded which session. A few choices of yours make this work.
+
+- **Your cost is yours.** What your connector costs (CPU, memory, how it reads the game) is
+  for you to keep low; Stintmate measures only its own. The idle budget in
+  [levels.md](levels.md) section 4 still applies to you.
+- **Choosing `sim` is choosing a data namespace.** Reuse another connector's `sim` only when
+  your car, class, track and layout ids are the same as theirs for the same things; then the
+  user's history is shared and compared across both. Otherwise pick your own `sim`, and your
+  data stays apart. Two connectors that share a `sim` but number the same car differently would
+  mix up the user's data, so share a `sim` only with identical ids.
+- **The product key.** Your hello and your descriptor carry a `product`: a UUID version 4 that
+  you generate once (`[guid]::NewGuid()` in PowerShell). Keep it in every version and flavour of
+  your connector, never change it, and never copy another connector's key or id. It is how
+  Stintmate tells two connectors apart even when they pick the same `id`; a connector that
+  names an `id` already taken by another `product` is refused with `connector_id_taken`
+  ([connector-protocol.md section 1](connector-protocol.md#1-connecting)) and its setup
+  refuses to overwrite the other connector's descriptor
+  ([descriptor.md](descriptor.md)).

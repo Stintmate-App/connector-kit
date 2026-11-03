@@ -36,6 +36,13 @@ vocabularies you map your simulator onto and which channels exist.
 | Participant lap (`participant_laps`) | `row_id`; indexed `(session_id, participant, lap)` | `participant`, `lap`, `name`, `is_player`, `valid`, `pit`, `from_line` (required); `car_id`, `class_id`, `time_s`, `time_source`, `sectors` (JSON array), `pit_stops`, `position`, `crossed_at_s`, `sim_best_lap_s`, `state` |
 | Meta (`meta`) | `key` | `model_version` = 2, `contract_version` = 1 |
 
+For each catalog item (class, car, track, layout) Stintmate also records which connectors
+declared it and the name each gave, so the same item under two connectors stays visible. It records
+each connector it has seen too (id, product, name, version), and links sessions of different
+connectors that overlap in time, so the user can tell they recorded the same drive. A connector
+uses its own `sim` as a data namespace; share one only with identical ids
+([connectors.md section 7](connectors.md#7-several-connectors-for-one-game)).
+
 Pitwall also keeps a track outline per layout, computed from the layout's best clean lap; you
 send nothing for it.
 

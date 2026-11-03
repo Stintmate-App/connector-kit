@@ -39,6 +39,7 @@ and supervises whatever its [descriptor](descriptor.md) describes. The kit's che
 | M17 | An `uninstall` command in the descriptor when anything installed the connector, and the hold of [connector-protocol.md](connector-protocol.md) section 1.2 when its setup replaces a running one. | Uninstall and update cannot be automatic. | [descriptor.md](descriptor.md) |
 | M18 | No text composed in a language the connector does not have: service names and labels come from its own catalog. A connector in one language that does not serve `control.catalog.get` meets this. | Texts reach the user in the wrong language. | [contract.md](contract.md) section 3.2, [catalogs.md](catalogs.md) |
 | M19 | Honour `STINTMATE_DEV_INSTANCE=<tag>` in every process: pipes and mutex take the tag ([guide.md](guide.md) section 3 says how). | A test run and a real Stintmate on the same machine share a pipe name and a mutex name, so one of them is refused or adopted, and `connector-check` cannot run beside the real apps. | [guide.md](guide.md) section 3 |
+| M20 | `product` in the hello metadata and in the descriptor: a UUID version 4, equal in both and the same in every version and flavour, never another connector's. | Stintmate cannot tell your connector from another that picks the same `id`; the hello is closed with `bad_request` (missing or malformed) or `connector_id_taken`, and the descriptor is listed as broken. | [connector-protocol.md](connector-protocol.md) section 1, [descriptor.md](descriptor.md), [connectors.md](connectors.md) section 7 |
 
 `length_m` is required: the layout length is what turns a lap's distance into a fraction of
 the lap in the analysis and the live state. The outbox (M14) is required of every connector.
@@ -164,7 +165,7 @@ random `STINTMATE_DEV_INSTANCE` tag (M19), so it runs beside a real Stintmate wi
 uv run --project <kit>\checker connector-check --descriptor <file> [--level minimum|features]
 ```
 
-- **`--level minimum`** (default) runs every automatic check of M1 to M19 (section 2).
+- **`--level minimum`** (default) runs every automatic check of M1 to M20 (section 2).
 - **`--level features`** also checks each name in the descriptor's `features` that it can: that the
   names are known (`F.names`), and that a declared `announcements`, `guidance` or `actions`
   reached the fake Pitwall (`test.ping` is called). The other features of section 6 are not checked.
