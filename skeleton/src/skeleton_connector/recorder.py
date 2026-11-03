@@ -43,6 +43,22 @@ log = logging.getLogger("skeleton_connector.recorder")
 # control state then says `refused` (docs/contract.md section 3.2).
 REFUSED = ("unauthorized", "bad_request", "busy", "connector_busy", "connector_id_taken")
 GAME_CHECK_S = 2.0                     # the most often the game may be checked
+# After `connector_id_taken` another connector owns this id: retrying at once only fights it, so
+# the wait is at least this long whatever the IPC client's own policy says.
+ID_TAKEN_WAIT_S = 60.0
+
+
+class _Client(Client):
+    """The IPC client with one rule on top of its reconnect policy: after ``connector_id_taken``
+    the next attempt comes no sooner than ``id_taken_wait_s``."""
+
+    id_taken_wait_s = ID_TAKEN_WAIT_S
+
+    def reconnect_delay(self, code: str | None = None, attempt: int = 0) -> float | None:
+        delay = super().reconnect_delay(code, attempt)
+        if delay is not None and code == "connector_id_taken":
+            return max(delay, self.id_taken_wait_s)
+        return delay
 
 
 def peer_info(service: str = SERVICE_ID) -> PeerInfo:
@@ -59,9 +75,11 @@ class Recorder:
     ``control.state.pitwall``). ``recording`` tells whether a session is being written."""
 
     def __init__(self, pipe: str, key: Any, workspace: str | Path, *, lap_period_s: float = 2.0,
-                 game_check_s: float = GAME_CHECK_S, game: Game | None = None,
+                 game_check_s: float = GAME_CHECK_S, id_taken_wait_s: float = ID_TAKEN_WAIT_S,
+                 game: Game | None = None,
                  on_change: Callable[[], None] | None = None) -> None:
-        self.client = Client(pipe, peer_info(), key)
+        self.client = _Client(pipe, peer_info(), key)
+        self.client.id_taken_wait_s = id_taken_wait_s
         self.client.on_connect = self._on_connect      # runs after every (re)connection
         self.client.on_disconnect = self._on_disconnect
         self.client.on_connect_error = self._connect_error

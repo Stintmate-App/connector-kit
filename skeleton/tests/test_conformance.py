@@ -506,6 +506,22 @@ def test_a_taken_connector_id_shows_refused(workspace, pitwall):
         rec.stop()
 
 
+def test_a_taken_connector_id_is_not_retried_at_once(workspace, pitwall):
+    ws, key = workspace
+    pitwall.close_with = "connector_id_taken"
+    rec = Recorder(pitwall.pipe, key, ws, lap_period_s=0, game_check_s=0.05, id_taken_wait_s=1.5)
+    rec.start()
+    try:
+        assert wait(lambda: len(pitwall.hellos) == 1)
+        start = time.monotonic()
+        time.sleep(1.0)
+        assert len(pitwall.hellos) == 1                  # still waiting
+        assert wait(lambda: len(pitwall.hellos) == 2, 6.0)
+        assert time.monotonic() - start >= 1.2           # the second came after the wait
+    finally:
+        rec.stop()
+
+
 def test_a_refused_connection_shows_refused(workspace, pitwall):
     ws, _ = workspace
     rec = Recorder(pitwall.pipe, os.urandom(32), ws, lap_period_s=0, game_check_s=0.05)
