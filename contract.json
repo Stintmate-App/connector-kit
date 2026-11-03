@@ -4,7 +4,7 @@
     "idle_cpu_percent_of_core": 0.5,
     "idle_sample_s": 60
   },
-  "contract_version": 2,
+  "contract_version": 3,
   "error_codes": [
     "bad_request",
     "blank_frame",
@@ -12,6 +12,7 @@
     "confirmation_required",
     "connector_busy",
     "connector_disconnected",
+    "connector_id_taken",
     "engineer_only",
     "game_not_running",
     "internal",
@@ -36,6 +37,12 @@
     "window_minimized",
     "writer_busy"
   ],
+  "hello_meta": {
+    "product": {
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "required": true
+    }
+  },
   "limits": {
     "actions_max": 32,
     "announce_data_max_bytes": 2048,
