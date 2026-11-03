@@ -19,6 +19,7 @@ looks at files named `*.json`, so the temporary file of an atomic write is never
   "schema": 1,
   "id": "example",
   "name": "Example connector",
+  "product": "6f1c2a84-3b7e-4d59-9a0c-5e8d7b2f1a43",
   "sim": "example",
   "sim_name": "Example Simulator",
   "version": "1.0.0",
@@ -40,6 +41,7 @@ looks at files named `*.json`, so the temporary file of an atomic write is never
 | `schema` | int, required | The descriptor's version, `1`. A higher one is shown as needing a newer Stintmate. |
 | `id` | string, required | The connector's id: the same as in its `hello` metadata (`connector_id`) and **equal to the file name without `.json`**; a descriptor whose `id` differs from its file name is ignored (logged). It is also a file name and a folder name, so it matches `^[a-z0-9][a-z0-9_-]{0,31}$` (the pattern of the hello metadata and of [the schema](descriptor.schema.json)): none of `\ / : * ? " < > |` and no trailing dot. |
 | `name` | string, required | The connector's display name. |
+| `product` | string, required | The connector's product key: a UUID version 4, lowercase, with hyphens (`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`), **equal to the `product` in the hello metadata** ([connector protocol, section 1](connector-protocol.md#1-connecting)). Generate it once and never change it. A descriptor without it, or with a malformed one, is listed as broken ("written for an older Stintmate") and never launched. |
 | `version` | string, required | The connector's version. |
 | `sim`, `sim_name` | string, recommended | The simulator as the connector names it (its hello metadata's `sim`, `sim_name`). The hub does not read them: shown by other tools, never branched on. |
 | `flavour` | string, optional | Which build of this connector is installed, for example `"dev"` or `"python"`. Leave it out for the release build. The hub shows it after the version (`1.2.0 (dev)`); nothing branches on it. |
@@ -64,6 +66,10 @@ launched.
   and correct, so a managing app finds the connector. How it gets there is the connector's
   choice: its setup, a registration command or a script such as the skeleton's `install.ps1`.
   Nothing needs a workspace to install a connector.
+- **One file per id, one owner:** the `product` says whose file it is. A setup or registration
+  command that finds `<id>.json` holding **another `product` does not overwrite it**: it fails
+  with a message that names the other connector (its `name`) and says the id is taken. Only a
+  descriptor with the same `product` is replaced.
 - **One file per id:** installing a second build of the same connector replaces the first. The
   setup of one build removes the other through its `uninstall` command, so the two flavours
   never share the file. When the file's `launcher` changes while the connector runs, the hub
@@ -74,9 +80,10 @@ launched.
 - **Written by the connector only,** from its setup or registration command, atomically
   (a temporary file in the same folder, then a replace), UTF-8 without a BOM, and left as it
   is when nothing but `written_at` would change. A control app does not rewrite it at start.
-- **Removed by the connector's uninstaller,** and only when the file's `launcher` names that
-  install (absolute paths, compared case-insensitive, `/` read as `\`). A file that names
-  another install, or is not the connector's, is left as it is.
+- **Removed by the connector's uninstaller,** and only when both the file's `launcher` names that
+  install (absolute paths, compared case-insensitive, `/` read as `\`) and its `product` is the
+  connector's own. A file that names another install or another product, or is not the
+  connector's, is left as it is.
 - **The connector is responsible for everything it needs to run and to meet the protocol.** A
   managing app does not install, repair or choose interpreters for it. A connector that is a
   script ships its own Python environment (or runtime) inside its folder, and `launcher` names

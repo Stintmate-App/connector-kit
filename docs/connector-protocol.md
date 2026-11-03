@@ -81,10 +81,18 @@ control endpoint. It lives in
   | `app` | `connector-<id>` (`connector-examplesim`) |
   | `process` | the service: `recorder`... |
   | `name`, `version` | the connector's display name and version |
-  | `meta` | REQUIRED `{connector_id: "<id>", connector_name, sim, sim_name, service}`, every value a non-empty string; `connector_id` is the slug of `app` and matches `^[a-z0-9][a-z0-9_-]{0,31}$`; `sim` matches `^[a-z0-9_-]{1,32}$`; `service` equals `process` |
+  | `meta` | REQUIRED `{connector_id: "<id>", connector_name, sim, sim_name, service, product}`, every value a non-empty string; `connector_id` is the slug of `app` and matches `^[a-z0-9][a-z0-9_-]{0,31}$`; `sim` matches `^[a-z0-9_-]{1,32}$`; `service` equals `process`; `product` is a UUID version 4, lowercase, with hyphens, matching `^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$` |
 
-  A connection whose `meta` fails these is closed with `bye` `bad_request` (the message names
-  the problem).
+  A connection whose `meta` fails these (a missing or malformed `product` included) is closed
+  with `bye` `bad_request` (the message names the problem).
+- **The product key** identifies your connector, apart from its `id`. Generate it once
+  (`[guid]::NewGuid()` in PowerShell), write it in your descriptor too ([descriptor.md](descriptor.md))
+  and send the same value in every connection of every version and flavour of the connector.
+  Pitwall remembers the `product` it first saw for an `id`. A connection that names another
+  `product` for an `id` already seen, or while another linked connection of that `id` names a
+  different one, is closed with `bye` `connector_id_taken` (section 8): two connectors cannot
+  share an id. Choosing a `sim` is a different matter, see
+  [connectors.md section 7](connectors.md#7-several-connectors-for-one-game).
 - **Many connectors at once, one active.** Pitwall accepts the connections of every `connector-*`
   app at the same time; the link rule above says which one is active. A second connection of the
   same service is closed with `busy`; every connection of a connector names the same `sim`
@@ -579,7 +587,8 @@ ID = "examplesim"
 info = PeerInfo(f"connector-{ID}", name="ExampleSim connector", version="1.2.0",
                 process="recorder",
                 meta={"connector_id": ID, "connector_name": "ExampleSim connector",
-                      "sim": "examplesim", "sim_name": "ExampleSim", "service": "recorder"})
+                      "sim": "examplesim", "sim_name": "ExampleSim", "service": "recorder",
+                      "product": "6f1c2a84-3b7e-4d59-9a0c-5e8d7b2f1a43"})
 c = Client(pipe_path("pitwall"), info, KeyFile(default_key_path()))
 
 ACTIONS = [{
@@ -796,6 +805,7 @@ The protocol's codes (IPC `SPEC.md` section 11) plus the application's, listed i
 | Code | Where | Meaning |
 |---|---|---|
 | `bad_request` | writes, declare, announce, guidance, actions | Refused: `msg` names the field; not retryable. For `pitwall.announce`: also a `variant` out of range or not an integer. For `pitwall.guidance.declare`: `items` not a list, more than 16 items, or over 8,000 characters (a single bad item is only dropped, section 5.1). For `pitwall.actions.declare`: `actions` not a list, more than 32 actions or over 128 KiB (a single bad action is only dropped, section 5.2); also what you answer to `connector.action` for your own semantic refusal. |
+| `connector_id_taken` | `bye` | The `connector_id` was first seen with another `product`, or another linked connection of the same id already names another `product`. `details` `{connector_id, product_seen}`. Final until the user acts (the user removes the other install, or you choose another id): retry after 60 s, no faster. Report `control.state.pitwall` = `refused`. |
 | `writer_busy` | writes | The database is held by another writer (an import); `retry_ms`; the key is not consumed. |
 | `session_closed`, `unknown_session` | writes | The `session_key` was closed by Pitwall, or never started. |
 | `unknown_code` | announce | A code not in the declared catalog (or nothing declared). |
@@ -859,7 +869,8 @@ TELEMETRY = Layout([("lap_distance_m", "f32"), ("speed_ms", "f32"), ("accel_long
 info = PeerInfo(f"connector-{ID}", name="ExampleSim connector", version="1.2.0",
                 process="recorder",
                 meta={"connector_id": ID, "connector_name": "ExampleSim connector",
-                      "sim": "examplesim", "sim_name": "ExampleSim", "service": "recorder"})
+                      "sim": "examplesim", "sim_name": "ExampleSim", "service": "recorder",
+                      "product": "6f1c2a84-3b7e-4d59-9a0c-5e8d7b2f1a43"})
 c = Client(pipe_path("pitwall"), info, KeyFile(default_key_path()))
 c.method("connector.live_frame", lambda ctx, p: {"sim": ID, "phase": "menus"}, inline=True)
 # Optional: serve the engineer's actions (section 5.2), on a pool thread, never the game loop.
