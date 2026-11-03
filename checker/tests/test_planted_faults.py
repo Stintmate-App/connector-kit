@@ -24,7 +24,9 @@ FAST = [("control.py", "lap_period_s: float = 2.0", "lap_period_s: float = 0.5")
         ("control.py", "game_check_s: float = 2.0", "game_check_s: float = 0.3")]
 SLOW = [("control.py", "lap_period_s: float = 2.0", "lap_period_s: float = 1.5"),
         ("control.py", "game_check_s: float = 2.0", "game_check_s: float = 0.3")]
-NO_PRIORITY = ("main.py", "    lower_priority()\n    args = parse(argv)", "    args = parse(argv)")
+# Sets normal priority on purpose: a child inherits its parent's class, and a CI runner may be
+# below normal, so only leaving out the call proves nothing there.
+NO_PRIORITY = ("main.py", "BELOW_NORMAL_PRIORITY_CLASS = 0x4000", "BELOW_NORMAL_PRIORITY_CLASS = 0x0020")
 QUIT_RULE = ("control.py", "if self.managed and self.parent_pid and not", "if False and not")
 LAP_TIME = ("recorder.py", "            if time_s is not None:\n                params[\"time_s\"] = time_s",
             "            if True:\n                params[\"time_s\"] = time_s or 30.0")
