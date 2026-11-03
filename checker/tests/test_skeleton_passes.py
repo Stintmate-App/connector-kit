@@ -11,10 +11,15 @@ import sys
 from pathlib import Path
 
 import stintmate_ipc as ipc
-from conftest import skeleton_descriptor
+from conftest import SKELETON, skeleton_descriptor
 from test_runtime import leftovers
 
 from connector_check.report import FAIL, PASS
+
+
+# The skeleton's own setup, aimed at the checker's temporary folders: it must refuse.
+REGISTER = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+            str(SKELETON / "install.ps1"), "-Destination", r"{workspace}\registered"]
 
 
 def real_pipes() -> set[str]:
@@ -42,7 +47,8 @@ def test_the_skeleton_passes_beside_a_real_stintmate(tmp_path):
     done = subprocess.run(
         [sys.executable, "-m", "connector_check.cli", "--descriptor", str(descriptor),
          "--fake-game-file", r"{workspace}\connectors\{id}\fake_game", "--cpu-seconds", "5",
-         "--link-seconds", "10", "--start-timeout", "30", "--report", str(report)],
+         "--link-seconds", "10", "--start-timeout", "30", "--report", str(report),
+         "--register-command", json.dumps(REGISTER)],
         capture_output=True, text=True, timeout=900)
     doc = json.loads(report.read_text(encoding="utf-8"))
     by_id = {c["id"]: c for c in doc["checks"]}
@@ -50,7 +56,7 @@ def test_the_skeleton_passes_beside_a_real_stintmate(tmp_path):
     assert {i: c["status"] for i, c in automatic.items() if c["status"] != PASS} == {}, done.stdout
     assert done.returncode == 0 and doc["exit_code"] == 0, done.stdout
     assert FAIL not in {c["status"] for c in by_id.values()}
-    assert len(automatic) == 32
+    assert len(automatic) == 35
     # Nothing of the real apps was touched, and nothing was left running.
     assert real_pipes() == pipes_before
     assert real_files() == files_before

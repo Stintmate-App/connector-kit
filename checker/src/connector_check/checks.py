@@ -7,6 +7,9 @@ from __future__ import annotations
 import json
 import os
 import logging
+import re
+import shlex
+import subprocess
 import sys
 import threading
 import time
@@ -46,6 +49,10 @@ CHECKS: list[Check] = [
     Check("M9.link", "Linked with the game closed, and stays linked", "link"),
     Check("M7.absent", "Retries while Pitwall is absent", "link"),
     Check("M9.state", "control.state.pitwall follows the connection", "link"),
+    Check("M20.product", "product is valid and equal in the hello and the descriptor", "product"),
+    Check("M20.taken", "connector_id_taken shows refused and is not retried within 60 s", "taken"),
+    Check("M20.registration", "Registration refuses to overwrite another product's descriptor",
+          "register"),
     Check("M18.texts", "Names and labels come from the language pack", "texts"),
     Check("M6.recorder", "Service recorder: waiting, then recording", "session"),
     Check("M8.game", "game_running before the first write, false after", "session"),
@@ -128,8 +135,8 @@ class Ctx:
 
 
 GROUPS: list[tuple[str, Callable[[Ctx], None]]] = []
-ORDER = ["static", "key", "start", "single", "transport", "services", "link", "texts", "session",
-         "retry", "outbox", "cpu", "features", "quit"]
+ORDER = ["static", "register", "key", "start", "single", "transport", "services", "product",
+         "link", "taken", "texts", "session", "retry", "outbox", "cpu", "features", "quit"]
 
 
 def group(name: str) -> Callable[[Callable[[Ctx], None]], Callable[[Ctx], None]]:
@@ -330,7 +337,11 @@ def boot(ctx: Ctx) -> bool:
 
 def start_core(ctx: Ctx) -> None:
     """The fake Pitwall, on the tagged pipe and with the key of the temporary workspace."""
-    ctx.core = FakeCore(ctx.core_pipe, ctx.key, ctx.schema("write-api.schema.json")).start()
+    core = FakeCore(ctx.core_pipe, ctx.key, ctx.schema("write-api.schema.json"))
+    pattern = ((ctx.contract.get("hello_meta") or {}).get("product") or {}).get("pattern")
+    if isinstance(pattern, str):
+        core.product_pattern = pattern
+    ctx.core = core.start()
 
 
 def need_boot(ctx: Ctx, ids: list[str]) -> bool:
@@ -745,6 +756,136 @@ def link_checks(ctx: Ctx) -> None:
     else:
         rep.passed("M9.state", "waiting, connected, refused (" + ", ".join(REFUSALS)
                    + ") and retried")
+
+
+# ---- the product key (M20) -----------------------------------------------------------------
+
+TAKEN_RETRY_MIN_S = 60.0       # connector-protocol.md: retry after 60 s
+
+
+@group("product")
+def product_checks(ctx: Ctx) -> None:
+    rep, core = ctx.report, ctx.core
+    if not need_boot(ctx, ids_of("product")):
+        return
+    pattern = re.compile(((ctx.contract.get("hello_meta") or {}).get("product") or {})
+                         .get("pattern") or core.product_pattern)
+    if not core.wait(lambda: core.hellos, 15.0):
+        rep.failed("M20.product", "no hello within 15 s, so the product key was not seen")
+        return
+    meta = core.hellos[-1][1].meta or {}
+    hello, listed = meta.get("product"), ctx.descriptor.get("product")
+    problems = []
+    for where, value in (("hello", hello), ("descriptor", listed)):
+        if value is None:
+            problems.append(f"no product in the {where}")
+        elif not isinstance(value, str) or not pattern.match(value):
+            problems.append(f"the {where}'s product {value!r} is not a lowercase UUID version 4")
+    if not problems and hello != listed:
+        problems.append(f"the hello's product {hello} differs from the descriptor's {listed}")
+    if problems:
+        rep.failed("M20.product", "; ".join(problems))
+    else:
+        rep.passed("M20.product", f"{hello} in the hello and the descriptor")
+
+
+@group("taken")
+def taken_checks(ctx: Ctx) -> None:
+    """Planted fault: the core closes every connection with `connector_id_taken`. The connector
+    shows `refused` and makes no new attempt for 60 s after the refused one (the observation lasts
+    `--taken-seconds`, 65 by default, so a retry at 60 s is seen but one at 75 s is not needed)."""
+    rep, core = ctx.report, ctx.core
+    if not need_boot(ctx, ids_of("taken")):
+        return
+    core.wait(lambda: core.linked, 15.0)
+    seen = len(core.hellos)
+    core.bye_while("connector_id_taken")
+    restart_core(ctx)
+    problems = []
+    try:
+        if not core.wait(lambda: len(core.hellos) > seen, 30.0):
+            rep.failed("M20.taken", "the connector did not connect again within 30 s")
+            return
+        first = core.hellos[seen][0]
+        if not pitwall_state(ctx, "refused", 30.0):
+            problems.append("control.state.pitwall is not 'refused' after connector_id_taken")
+        window = max(ctx.args.taken_seconds, TAKEN_RETRY_MIN_S + 1.0)
+        # A retry inside the 60 s ends the wait at once; otherwise watch the whole window.
+        core.wait(lambda: len(core.hellos) > seen + 1,
+                  max(0.0, first + TAKEN_RETRY_MIN_S - time.monotonic()))
+        time.sleep(max(0.0, first + window - time.monotonic()) if len(core.hellos) <= seen + 1
+                   else 0.0)
+        early = [t - first for t, _ in core.hellos[seen + 1:] if t - first < TAKEN_RETRY_MIN_S]
+        if early:
+            problems.append(f"it tried again {early[0]:.1f} s after connector_id_taken "
+                            f"(not before {TAKEN_RETRY_MIN_S:.0f} s)")
+        elif not pitwall_state(ctx, "refused", 5.0):
+            problems.append("control.state.pitwall left 'refused' while the id was still taken")
+    finally:
+        core.bye_while(None)
+    if problems:
+        rep.failed("M20.taken", "; ".join(problems))
+    else:
+        rep.passed("M20.taken", f"refused, and no new attempt within {TAKEN_RETRY_MIN_S:.0f} s "
+                                f"(watched {window:.0f} s)")
+    restart(ctx)                  # forget the long wait: the checks after this one need the link
+
+
+def register_argv(ctx: Ctx, folder: Path) -> list[str] | None:
+    """The registration command from ``--register-command`` with its placeholders replaced."""
+    text = ctx.args.register_command
+    if not text:
+        return None
+    parts = json.loads(text) if text.lstrip().startswith("[") else shlex.split(text, posix=False)
+    return [str(x).format(connectors_dir=folder, workspace=ctx.workspace, id=ctx.cid)
+            for x in parts]
+
+
+@group("register")
+def register_checks(ctx: Ctx) -> None:
+    """The registration command must refuse to overwrite a descriptor with another product. It
+    runs against a folder of its own in the temporary folder, with every per-user folder aimed at
+    the temporary folder too, so a command that does not refuse still touches nothing real."""
+    rep = ctx.report
+    tmp: Path = ctx.scratch["tmp"]
+    folder = tmp / "registration"
+    folder.mkdir(exist_ok=True)
+    try:
+        argv = register_argv(ctx, folder)
+    except (ValueError, KeyError, IndexError) as exc:
+        rep.failed("M20.registration", f"--register-command cannot be read: {exc!r}")
+        return
+    if argv is None:
+        rep.manual("M20.registration", "no --register-command: run your setup against a folder "
+                   "that holds a descriptor with another product; it must refuse and change nothing")
+        return
+    planted = dict(ctx.descriptor, product="00000000-0000-4000-8000-000000000000",
+                   name="Another connector")
+    target = folder / f"{ctx.cid}.json"
+    target.write_text(json.dumps(planted, indent=2), encoding="utf-8")
+    before = target.read_bytes()
+    env = dict(os.environ)
+    env.pop("STINTMATE_WORKSPACE", None)
+    env["STINTMATE_CONNECTORS_DIR"] = str(folder)
+    for name in ("LOCALAPPDATA", "APPDATA"):
+        (tmp / "registration-home" / name).mkdir(parents=True, exist_ok=True)
+        env[name] = str(tmp / "registration-home" / name)
+    try:
+        done = subprocess.run(argv, env=env, cwd=str(tmp), capture_output=True, text=True,
+                              timeout=120)
+    except (OSError, subprocess.SubprocessError) as exc:
+        rep.failed("M20.registration", f"the registration command did not run: {exc!r}")
+        return
+    after = target.read_bytes() if target.exists() else None
+    if after != before:
+        rep.failed("M20.registration", "the descriptor of another product was changed or removed")
+    elif done.returncode == 0:
+        rep.failed("M20.registration", "it left the other descriptor alone but exited 0: "
+                   "a refusal must be a failure the caller sees")
+    else:
+        why = (done.stderr or done.stdout).strip().splitlines()
+        rep.passed("M20.registration", f"exit {done.returncode}, descriptor unchanged"
+                   + (f": {why[0][:100]}" if why else ""))
 
 
 # ---- texts (M18) ---------------------------------------------------------------------------

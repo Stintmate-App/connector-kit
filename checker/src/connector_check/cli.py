@@ -46,6 +46,15 @@ def build_parser() -> argparse.ArgumentParser:
                    help="seconds to wait for control.state after the start (default 60)")
     p.add_argument("--link-seconds", type=float, default=30.0,
                    help="seconds the link must hold with the game closed (default 30)")
+    p.add_argument("--taken-seconds", type=float, default=65.0,
+                   help="seconds M20.taken watches the connector after connector_id_taken "
+                        "(default 65, at least 61: the connector may not retry within 60 s)")
+    p.add_argument("--register-command", metavar="COMMAND",
+                   help="M20.registration: the command that registers your connector (a JSON "
+                        "array or a command line). {connectors_dir}, {workspace} and {id} are "
+                        "replaced. The checker runs it against a folder that holds a descriptor "
+                        "of another product; it must refuse and change nothing. Without it the "
+                        "check stays manual")
     return p
 
 
