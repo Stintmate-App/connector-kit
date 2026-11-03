@@ -88,8 +88,8 @@ def test_writes_survive_pitwall_going_away(workspace, pitwall):
         _open_game(ws)
         assert wait(lambda: rec.outbox.summary()["pending"] == SESSION_WRITES)
         assert pitwall.calls == []
-        status = rec.status.value["outbox"]
-        assert status["pending"] == SESSION_WRITES and status["oldest_at"]
+        assert wait(lambda: rec.status.value["outbox"]["pending"] == SESSION_WRITES)
+        assert rec.status.value["outbox"]["oldest_at"]
         pitwall.start()
         assert pitwall.ended.wait(20)
     finally:
