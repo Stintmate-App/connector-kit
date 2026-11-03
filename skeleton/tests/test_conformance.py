@@ -39,6 +39,7 @@ from skeleton_connector.texts import ACTIONS, ANNOUNCEMENTS, GUIDANCE, WINDOW, s
 from support import pipe, wait
 
 ROOT = Path(__file__).resolve().parents[1]
+PRODUCT_PATTERN = r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
 # Names from the contract documents.
 CONTROL_REQUIRED = {"control.quit", "control.managed", "control.service.start",
                     "control.service.stop"}
@@ -74,8 +75,9 @@ def test_the_recorder_writes_a_session_as_the_protocol_says(workspace, pitwall):
                                                    "Skeleton connector")
     assert info.meta == {"connector_id": "skeleton", "connector_name": "Skeleton connector",
                          "sim": "skeletonsim", "sim_name": "Skeleton Simulator",
-                         "service": "recorder"}
+                         "service": "recorder", "product": S.PRODUCT}
     assert re.fullmatch(r"[a-z0-9_-]{1,32}", info.meta["sim"])
+    assert re.fullmatch(PRODUCT_PATTERN, info.meta["product"])
 
     # declarations: catalog, guidance (section 5, 5.1)
     assert pitwall.named("pitwall.catalog.declare") == [{"catalog": ANNOUNCEMENTS}]
@@ -275,6 +277,8 @@ def test_install_writes_the_descriptor_the_hub_reads(tmp_path):
     d = json.loads(raw)
     folder = dest
     assert d["schema"] == 1 and d["id"] == target.stem == S.CONNECTOR_ID
+    assert d["product"] == S.PRODUCT and re.fullmatch(PRODUCT_PATTERN, d["product"])
+    assert f"'{S.PRODUCT}'" in (ROOT / "install.ps1").read_text(encoding="utf-8")
     assert (d["name"], d["sim"], d["sim_name"], d["version"]) == (
         S.CONNECTOR_NAME, S.SIM, S.SIM_NAME, S.CONNECTOR_VERSION)
     launcher = Path(d["launcher"])
@@ -489,6 +493,17 @@ def test_the_laps_carry_the_minimum_channels(lap_s):
     path = sum(math.dist((ch["x"][i], ch["z"][i]), (ch["x"][i + 1], ch["z"][i + 1]))
                for i in range(n - 1))
     assert abs(path - TRACK_LENGTH_M) < 0.05 * TRACK_LENGTH_M
+
+
+def test_a_taken_connector_id_shows_refused(workspace, pitwall):
+    ws, key = workspace
+    pitwall.close_with = "connector_id_taken"
+    rec = Recorder(pitwall.pipe, key, ws, lap_period_s=0, game_check_s=0.05)
+    rec.start()
+    try:
+        assert wait(lambda: rec.state == "refused") and rec.refused == "connector_id_taken"
+    finally:
+        rec.stop()
 
 
 def test_a_refused_connection_shows_refused(workspace, pitwall):

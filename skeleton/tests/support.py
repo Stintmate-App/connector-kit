@@ -40,6 +40,7 @@ class FakePitwall:
         self.hellos: list[PeerInfo] = []
         self.ended = threading.Event()
         self.peer = None
+        self.close_with: str | None = None    # close every new connection with this bye code
         self._replies: dict[str, dict] = {}
         self._exits = 0
         self._refuse: deque[tuple[str, int | None]] = deque()
@@ -69,6 +70,8 @@ class FakePitwall:
     def _connected(self, peer) -> None:
         self.hellos.append(peer.info)
         self.peer = peer
+        if self.close_with:
+            peer.close(self.close_with, "scripted")
 
     def call_connector(self, method: str, params: dict):
         """Call the connector as the core relays an action."""

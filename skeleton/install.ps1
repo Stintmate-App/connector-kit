@@ -8,8 +8,10 @@
      for a connector).
   2. Copies this script to <Destination>\install.ps1: the descriptor's `uninstall` command runs
      that copy.
-  3. Writes %LOCALAPPDATA%\Stintmate\connectors\skeleton.json with the ABSOLUTE launcher. That
-     file is all the hub needs; how it gets there is the connector's business. This script is
+  3. Writes %LOCALAPPDATA%\Stintmate\connectors\skeleton.json with the ABSOLUTE launcher and the
+     connector's product key. If that file already holds ANOTHER product key, the id belongs to
+     another connector: the script says so, names it and changes nothing. That file is all the
+     hub needs; how it gets there is the connector's business. This script is
      this connector's way. It needs no Stintmate workspace: the connector's logs and data go
      to <workspace>\connectors\skeleton\ when the hub runs it.
 
@@ -39,8 +41,9 @@
   hub starts the new build.
 
 .PARAMETER Uninstall
-  Hold the connector, remove skeleton.json only if its launcher is under -Destination, release
-  the connector without starting it, then remove the destination folder.
+  Hold the connector, remove skeleton.json only if its launcher is under -Destination and its
+  product key is this connector's, release the connector without starting it, then remove the
+  destination folder.
 #>
 param(
     [string]$Destination = (Join-Path $env:LOCALAPPDATA 'Programs\Stintmate Skeleton Connector'),
@@ -51,6 +54,9 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $id = 'skeleton'
+# The product key: generated once with [guid]::NewGuid(), never changed, never another
+# connector's. Keep it equal to PRODUCT in src\skeleton_connector\__init__.py (a test checks).
+$product = '6f1c2a84-3b7e-4d59-9a0c-5e8d7b2f1a43'
 $source = $PSScriptRoot
 $connectors = $env:STINTMATE_CONNECTORS_DIR
 if ([string]::IsNullOrWhiteSpace($connectors)) {
@@ -93,6 +99,12 @@ function Enter-Hold([string]$Purpose) {
     return $true
 }
 
+# The descriptor of this id as it stands, or $null (missing or not readable JSON).
+function Read-Descriptor() {
+    if (-not (Test-Path -LiteralPath $target -PathType Leaf)) { return $null }
+    try { return (Get-Content -LiteralPath $target -Raw -Encoding UTF8 | ConvertFrom-Json) } catch { return $null }
+}
+
 if ($Uninstall) {
     if (Test-Path -LiteralPath $py -PathType Leaf) {
         if (-not (Enter-Hold 'uninstall')) {
@@ -104,16 +116,18 @@ if ($Uninstall) {
     try {
         # Remove the descriptor only when it names THIS install (another build may have replaced it).
         if (Test-Path -LiteralPath $target -PathType Leaf) {
+            $current = Read-Descriptor
             $launcherOf = $null
-            try { $launcherOf = (Get-Content -LiteralPath $target -Raw -Encoding UTF8 | ConvertFrom-Json).launcher } catch { }
-            $under = $launcherOf -and ([System.IO.Path]::GetFullPath(($launcherOf -replace '/', '\')) + '\').StartsWith(
+            if ($current) { $launcherOf = $current.launcher }
+            $ours = $current -and ($current.product -ceq $product)
+            $under = $ours -and $launcherOf -and ([System.IO.Path]::GetFullPath(($launcherOf -replace '/', '\')) + '\').StartsWith(
                 $destFull + '\', [System.StringComparison]::OrdinalIgnoreCase)
             if ($under) {
                 Remove-Item -LiteralPath $target -Force
                 Write-Host "Removed: $target"
                 $removed = $true
             } else {
-                Write-Host "Left as it is (it names another install): $target"
+                Write-Host "Left as it is (it names another install or another product): $target"
             }
         }
     } finally {
@@ -128,6 +142,16 @@ if ($Uninstall) {
     if (Test-Path -LiteralPath $destFull) { Remove-Item -LiteralPath $destFull -Recurse -Force }
     Write-Host "Uninstalled: $destFull"
     return
+}
+
+# The id is another connector's when the file holds a different product key: never overwrite it.
+# (A file without a product key is an older build of this connector, or broken: it is replaced.)
+$existing = Read-Descriptor
+if ($existing -and $existing.product -and ($existing.product -cne $product)) {
+    [Console]::Error.WriteLine("The connector id '$id' is taken: $target belongs to another connector " +
+        "('$($existing.name)', product $($existing.product)). Nothing was changed. " +
+        "Uninstall that connector first, or give this one another id and product key.")
+    exit 1
 }
 
 if ($Update -and (Test-Path -LiteralPath $py -PathType Leaf)) {
@@ -167,6 +191,7 @@ try {
         schema           = 1
         id               = $id
         name             = 'Skeleton connector'
+        product          = $product
         sim              = 'skeletonsim'
         sim_name         = 'Skeleton Simulator'
         version          = $version

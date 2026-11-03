@@ -30,7 +30,8 @@ from typing import Any
 
 from stintmate_ipc import Client, HandshakeError, IpcError, PeerInfo, RemoteError
 
-from . import APP_ID, CONNECTOR_ID, CONNECTOR_NAME, CONNECTOR_VERSION, SERVICE_ID, SIM, SIM_NAME
+from . import (APP_ID, CONNECTOR_ID, CONNECTOR_NAME, CONNECTOR_VERSION, PRODUCT, SERVICE_ID, SIM,
+               SIM_NAME)
 from .game import Game
 from .outbox import Outbox
 from .session import CATALOG, LIVE, SCRIPT, channels
@@ -40,7 +41,7 @@ log = logging.getLogger("skeleton_connector.recorder")
 
 # Codes after which Pitwall closed the connection for a reason a retry will not fix; the
 # control state then says `refused` (docs/contract.md section 3.2).
-REFUSED = ("unauthorized", "bad_request", "busy", "connector_busy")
+REFUSED = ("unauthorized", "bad_request", "busy", "connector_busy", "connector_id_taken")
 GAME_CHECK_S = 2.0                     # the most often the game may be checked
 
 
@@ -48,7 +49,8 @@ def peer_info(service: str = SERVICE_ID) -> PeerInfo:
     """Who this process is (docs/connector-protocol.md section 1)."""
     return PeerInfo(APP_ID, name=CONNECTOR_NAME, version=CONNECTOR_VERSION, process=service,
                     meta={"connector_id": CONNECTOR_ID, "connector_name": CONNECTOR_NAME,
-                          "sim": SIM, "sim_name": SIM_NAME, "service": service})
+                          "sim": SIM, "sim_name": SIM_NAME, "service": service,
+                          "product": PRODUCT})
 
 
 class Recorder:

@@ -73,12 +73,22 @@ reads nothing. Your `Game.running()` takes the file's place.
    the hub to quit it and keep it stopped, and `release` ends the hold; with no hub it asks the
    connector to quit (`setup_hold stop`). If a session is being recorded, the script exits with
    code 1 and changes nothing. `-Uninstall` removes the descriptor only if its launcher is under
-   the destination, releases without starting, and then removes the folder; a descriptor removed
+   the destination and its `product` is the connector's own, releases without starting, and then removes the folder; a descriptor removed
    while held leaves the connector "updating" until it is released. The update is not atomic: it
    rebuilds the environment in place, so if the install fails the old build is gone; the script says
    so, exits with a non-zero code and releases the hold when it can (otherwise the hold ends at its
    300 s limit). Run `install.ps1` from
-   Windows PowerShell or PowerShell 7, with a path that has spaces or not. Stintmate installs
+   Windows PowerShell or PowerShell 7, with a path that has spaces or not.
+
+   **The product key.** `PRODUCT` in `src/skeleton_connector/__init__.py` (and `$product` in
+   `install.ps1`, which must hold the same value: a test checks) is the skeleton's fixed example
+   UUID. For your own connector, replace it **once** with a new one from `[guid]::NewGuid()` in
+   PowerShell, then never change it and never copy another connector's. The hello metadata and
+   the descriptor both carry it. `install.ps1` refuses to overwrite a descriptor that holds
+   another `product` (it names that connector and changes nothing), and `-Uninstall` leaves such
+   a file alone. When Pitwall closes the connection with `connector_id_taken`, the control state
+   shows `refused`, as for the other refused codes. See
+   [connectors.md section 7](../docs/connectors.md#7-several-connectors-for-one-game). Stintmate installs
    nothing for you and provides no Python.
 3. **Being started.** The hub runs the launcher with `--workspace <w> --managed --parent-pid
    <pid>`. `main.py` takes the mutex `Local\SkeletonConnector.Control` (the descriptor names it:
@@ -94,7 +104,7 @@ reads nothing. Your `Game.running()` takes the file's place.
    notices and no `control.services.desired` (publish that event only when your own window or
    tray switches a delegable service while you are managed).
 5. **Pitwall.** `Recorder` connects to `pitwall` as `connector-skeleton` / process `recorder`
-   with `meta` `{connector_id, connector_name, sim, sim_name, service}`, declares
+   with `meta` `{connector_id, connector_name, sim, sim_name, service, product}`, declares
    `connector.status`, and after every connection declares its announcement catalog
    (`connector.skeleton`), guidance and its action `test.ping` (`pitwall.actions.declare`; the
    engineer finds it with `list_connector_actions` and sends it with `send_connector_action`,
