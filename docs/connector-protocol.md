@@ -805,7 +805,7 @@ The protocol's codes (IPC `SPEC.md` section 11) plus the application's, listed i
 | Code | Where | Meaning |
 |---|---|---|
 | `bad_request` | writes, declare, announce, guidance, actions | Refused: `msg` names the field; not retryable. For `pitwall.announce`: also a `variant` out of range or not an integer. For `pitwall.guidance.declare`: `items` not a list, more than 16 items, or over 8,000 characters (a single bad item is only dropped, section 5.1). For `pitwall.actions.declare`: `actions` not a list, more than 32 actions or over 128 KiB (a single bad action is only dropped, section 5.2); also what you answer to `connector.action` for your own semantic refusal. |
-| `connector_id_taken` | `bye` | The `connector_id` was first seen with another `product`, or another linked connection of the same id already names another `product`. `details` `{connector_id, product_seen}`. Final until the user acts (the user removes the other install, or you choose another id): retry after 60 s, no faster. Report `control.state.pitwall` = `refused`. |
+| `connector_id_taken` | `bye` | The `connector_id` was first seen with another `product`, or another linked connection of the same id already names another `product`. The `bye` message names the id and the product it was first seen with. Final until the user acts (the user removes the other install, or you choose another id): retry after 60 s, no faster. Report `control.state.pitwall` = `refused`. |
 | `writer_busy` | writes | The database is held by another writer (an import); `retry_ms`; the key is not consumed. |
 | `session_closed`, `unknown_session` | writes | The `session_key` was closed by Pitwall, or never started. |
 | `unknown_code` | announce | A code not in the declared catalog (or nothing declared). |

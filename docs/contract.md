@@ -31,7 +31,7 @@ connector sends or receives:
 | `connector_disconnected` | Pitwall has no connector connected. | later |
 | `not_implemented_by_connector` | The connected connector does not declare that method or channel; `details` `{connector, sim, sim_name, method}`. | no |
 | `connector_busy` | Sent only by a Pitwall older than contract 2 (in `bye` or as a write's answer, see 4.1), while another connector id was connected. | 10 s, like any retryable code |
-| `connector_id_taken` | A connector id was first seen with another `product`, or one linked connection of the id already names another `product` (in `bye`; `details` `{connector_id, product_seen}`). | 60 s; final until the user acts |
+| `connector_id_taken` | A connector id was first seen with another `product`, or one linked connection of the id already names another `product` (in `bye`; its message names the id and the product it was first seen with). | 60 s; final until the user acts |
 | `writer_busy` | Pitwall's database is held by another writer (an import); nothing stored. **Does not consume the idempotency key.** | `retry_ms` |
 | `engineer_only` | The method is for the engineer's tool server; another peer called it. | no |
 | `unknown_action` | The connected connector did not declare that action code (`details` `{connector, codes}`); also what a connector answers for a code it no longer serves. | no |
