@@ -50,7 +50,8 @@ def test_the_examples_load(tmp_path):
 
 def test_the_example_frame_matches_the_schema():
     jsonschema = pytest.importorskip("jsonschema")
-    schema = json.loads((ROOT.parent / "docs" / "live-frame.schema.json").read_text(encoding="utf-8"))
+    # a copy of the kit's docs/live-frame.schema.json, so the test runs once the skeleton is copied out
+    schema = json.loads((Path(__file__).with_name("live-frame.schema.json")).read_text(encoding="utf-8"))
     frame = load("live_frame").frame_now()
     jsonschema.Draft202012Validator(schema).validate(frame)
     assert sum(1 for p in frame["participants"] if p["is_player"]) == 1
