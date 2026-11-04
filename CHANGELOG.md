@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 (2026-11-04)
 
 - The skeleton's tests no longer fail once the skeleton is copied out of the kit: the live-frame schema they validate against is shipped next to them (`skeleton/tests/live-frame.schema.json`), and a kit test keeps that copy equal to `docs/live-frame.schema.json`. No protocol or behaviour change.
+- The checker's version number follows the kit's (0.3.1).
 
 ## 0.3.0 (2026-11-03)
 
