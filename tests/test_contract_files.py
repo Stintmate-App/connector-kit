@@ -221,3 +221,9 @@ def test_the_budget_and_the_link_rule_read_the_same_everywhere():
     protocol = (DOCS / "connector-protocol.md").read_text(encoding="utf-8").replace("  > ", "> ")
     for text in (levels, connectors, protocol):
         assert rule in text
+
+
+def test_the_skeleton_ships_the_live_frame_schema_unchanged():
+    # the skeleton's tests validate its example frame against this copy once it is copied out
+    copy_ = (ROOT / "skeleton" / "tests" / "live-frame.schema.json").read_bytes()
+    assert copy_ == (DOCS / "live-frame.schema.json").read_bytes()
