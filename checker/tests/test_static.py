@@ -14,6 +14,13 @@ def lines_by_id(out: str) -> dict[str, str]:
             if ln.split("  ")[0] in (PASS, FAIL, SKIP, MANUAL)}
 
 
+def test_temporary_workspace_has_the_manifest(tmp_path):
+    from connector_check.cli import make_workspace
+    ws = make_workspace(tmp_path)
+    assert ws.is_dir()
+    assert json.loads((ws / "stintmate.json").read_text(encoding="utf-8")) == {"schema": 1}
+
+
 def test_report_exit_codes_and_worst_outcome_wins():
     checks = [Check("A.one", "one", "g"), Check("A.two", "two", "g"),
               Check("A.man", "manual", "g", manual=True)]

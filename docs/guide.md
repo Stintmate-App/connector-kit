@@ -122,6 +122,10 @@ field of `%APPDATA%\Stintmate\settings.json`
 creates or replaces it. While the workspace or key is missing, log it and retry; do not fail
 for good.
 
+A folder is a workspace only if it holds the manifest `stintmate.json` (`{"schema": 1}`); a
+connector that checks it refuses to start on a missing or bad manifest. The rule and the error
+names are in [contract section 8](contract.md#8-the-workspace-and-its-manifest).
+
 ## 5. The control profile
 
 Your control endpoint `connector-<id>` serves the control interface

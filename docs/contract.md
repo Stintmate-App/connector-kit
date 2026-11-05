@@ -493,3 +493,25 @@ A hold stops the connector and keeps it stopped until a release, the rewrite of 
 the deadline, or the user's Start or Stop. Repeating a hold moves the deadline to the later one.
 Releasing starts the connector again with the descriptor's current launcher if it was wanted
 before; repeating a release is safe.
+
+## 8. The workspace and its manifest
+
+The `--workspace` argument (and `STINTMATE_WORKSPACE`, and the workspace pointer; see the
+[guide](guide.md#4-the-workspace-and-the-read-only-key)) names the user's workspace. A folder is a
+workspace only if it holds the manifest `<workspace>\stintmate.json`: a JSON object with an integer
+`schema` of 1 or more, for example `{"schema": 1}`. Stintmate's own apps check only `schema`; other
+keys are for whoever reads them, so a connector keeps unknown keys and never rewrites the file.
+
+A connector that checks the workspace as Stintmate's apps do refuses to start on these errors. It
+writes no data file in the folder and logs the error name and what it means:
+
+| Error | Meaning |
+|---|---|
+| `workspace_uninitialized` | The folder has no `stintmate.json`: it is not a workspace. |
+| `manifest_invalid` | `stintmate.json` is not JSON, not an object, or has no valid `schema` (an integer of 1 or more). |
+| `manifest_unsupported` | `schema` is higher than the reader knows: the file was made by a newer Stintmate. |
+
+These names are the ones Stintmate's apps report. Connectors built on Stintmate's shared connector
+runtime enforce the rule; `connector-check` creates its temporary workspace with
+`{"schema": 1}` as `stintmate.json`, so such a connector accepts it. This is not a protocol
+change: no message, name or version of the connections above changed.
