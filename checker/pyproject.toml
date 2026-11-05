@@ -1,6 +1,6 @@
 [project]
 name = "connector-check"
-version = "0.3.1"
+version = "0.3.2"
 description = "Checks a Stintmate connector against the minimum level of the kit's contract"
 license = "Apache-2.0"
 requires-python = ">=3.12"

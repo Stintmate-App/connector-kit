@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.3.2 (2026-11-05)
 
 - The checker writes `{"schema": 1}` as `stintmate.json` into its temporary workspace. Without it, a connector that checks the workspace refused the folder, `M2.options` failed and every later check was skipped.
 - The contract wording was made explicit: new `contract.md` section 8 states the workspace manifest (`stintmate.json`, integer `schema` of 1 or more) and the errors `workspace_uninitialized`, `manifest_invalid` and `manifest_unsupported`; the guide links to it. No protocol change: `contract_version` stays 3.
+- The checker's version number follows the kit's (0.3.2).
 
 ## 0.3.1 (2026-11-04)
 
