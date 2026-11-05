@@ -63,6 +63,15 @@ def kit_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+def make_workspace(tmp: Path) -> Path:
+    """The temporary workspace: a folder with the manifest ``stintmate.json`` (``schema`` 1)
+    that makes a folder a workspace, so a connector that checks it accepts the folder."""
+    workspace = tmp / "workspace"
+    workspace.mkdir()
+    (workspace / "stintmate.json").write_text(json.dumps({"schema": 1}), encoding="utf-8")
+    return workspace
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     args.only = [x.strip() for part in args.only for x in part.split(",") if x.strip()]
@@ -96,8 +105,7 @@ def main(argv: list[str] | None = None) -> int:
 
     tag = "cc" + secrets.token_hex(5)
     tmp = Path(tempfile.mkdtemp(prefix="connector-check-"))
-    workspace = tmp / "workspace"
-    workspace.mkdir()
+    workspace = make_workspace(tmp)
     user = f"{ipc.pipe_user()}-{tag}"
     endpoint = desc.get("endpoint") if isinstance(desc.get("endpoint"), str) else "connector-x"
     mutex = args.mutex or f"{desc.get('mutex', '')}.{tag}"

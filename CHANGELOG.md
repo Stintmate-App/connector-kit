@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The checker writes `{"schema": 1}` as `stintmate.json` into its temporary workspace. Without it, a connector that checks the workspace refused the folder, `M2.options` failed and every later check was skipped.
+- The contract wording was made explicit: new `contract.md` section 8 states the workspace manifest (`stintmate.json`, integer `schema` of 1 or more) and the errors `workspace_uninitialized`, `manifest_invalid` and `manifest_unsupported`; the guide links to it. No protocol change: `contract_version` stays 3.
+
 ## 0.3.1 (2026-11-04)
 
 - The skeleton's tests no longer fail once the skeleton is copied out of the kit: the live-frame schema they validate against is shipped next to them (`skeleton/tests/live-frame.schema.json`), and a kit test keeps that copy equal to `docs/live-frame.schema.json`. No protocol or behaviour change.
