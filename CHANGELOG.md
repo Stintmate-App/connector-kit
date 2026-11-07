@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3 (2026-11-07)
+
+- `descriptor.md`: the hub now reads `window`. It shows its "Open window" button for a connector only when the key is `true`; a connector with no window leaves the key out. No protocol change: `contract_version` stays 3.
+
 ## 0.3.2 (2026-11-05)
 
 - The checker writes `{"schema": 1}` as `stintmate.json` into its temporary workspace. Without it, a connector that checks the workspace refused the folder, `M2.options` failed and every later check was skipped.
