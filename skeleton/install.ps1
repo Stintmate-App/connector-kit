@@ -7,7 +7,8 @@
      <Destination>\.venv, and installs this project into it (the hub never provides a Python
      for a connector).
   2. Copies this script to <Destination>\install.ps1: the descriptor's `uninstall` command runs
-     that copy.
+     that copy. Copies icon.png to <Destination>\icon.png (the descriptor's `icon`; it goes
+     with the folder on -Uninstall).
   3. Writes %LOCALAPPDATA%\Stintmate\connectors\skeleton.json with the ABSOLUTE launcher and the
      connector's product key. If that file already holds ANOTHER product key, the id belongs to
      another connector: the script says so, names it and changes nothing. That file is all the
@@ -185,6 +186,9 @@ try {
 
     $version = (Select-String -Path (Join-Path $source 'pyproject.toml') `
         -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+    # The connector's icon: installed beside the script, named by the descriptor's `icon`.
+    $icon = Join-Path $destFull 'icon.png'
+    Copy-Item -LiteralPath (Join-Path $source 'icon.png') -Destination $icon -Force
     # Windows PowerShell, by absolute path: no dependency on the shell that ran this script.
     $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $descriptor = [ordered]@{
@@ -206,6 +210,7 @@ try {
                              '-File', $installed, '-Uninstall', '-Destination', $destFull)
         window           = $false               # no window of its own to show
         features         = @()                  # what it offers beyond the minimum (levels.md)
+        icon             = $icon                # absolute path of the installed PNG
         written_at       = [DateTimeOffset]::Now.ToString('yyyy-MM-ddTHH:mm:ssK')
         written_by       = "skeleton-connector install.ps1 $version"
     }

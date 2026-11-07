@@ -32,7 +32,7 @@ no setting.
 | File | What it shows | Guide section |
 |---|---|---|
 | `fetch-ipc.ps1` | Downloads the `stintmate-ipc` wheel from the release of the `stintmate-ipc-python` repository into `vendor/` and checks its SHA-256 (`STINTMATE_IPC_RELEASE`: a base URL or a local folder instead); `install.ps1` runs it first | 1 |
-| `install.ps1` | Creates the connector's own Python environment in its install folder and writes the descriptor `%LOCALAPPDATA%\Stintmate\connectors\skeleton.json` with the **absolute** launcher (`-Update` holds the running connector first, `-Uninstall` removes both; see section 2) | 1, 2 |
+| `install.ps1` | Creates the connector's own Python environment in its install folder and writes the descriptor `%LOCALAPPDATA%\Stintmate\connectors\skeleton.json` with the **absolute** launcher and `icon` (the `icon.png` it installs beside the script: replace it with your own square PNG) (`-Update` holds the running connector first, `-Uninstall` removes both; see section 2) | 1, 2 |
 | `src/skeleton_connector/setup_hold.py` | Keep. What `install.ps1` asks of the running hub: `hold`, `release` and, with no hub, `stop` (section 2) | 1 |
 | `src/skeleton_connector/__init__.py` | The names, and `dev_tag()` and `pipe(app)`: with `STINTMATE_DEV_INSTANCE=<tag>` every pipe takes the tag, so a test run never meets a real Stintmate | 3 |
 | `src/skeleton_connector/main.py` | The launcher: runs below normal priority, accepts `--workspace --managed --parent-pid --allow-synced`, holds the single-instance mutex (with the tag when there is one), logs to `control.log` (folder made on the first run, capped at about 1 MB and two older copies) | 3, 4 |

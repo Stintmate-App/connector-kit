@@ -29,6 +29,8 @@
     "logs": {"type": "array", "items": {"type": "string"}},
     "uninstall": {"type": "array", "items": {"type": "string"}},
     "window": {"type": "boolean"},
+    "icon": {"type": "string", "pattern": "^[A-Za-z]:[\\\\/].*\\.[Pp][Nn][Gg]$",
+             "description": "Absolute local path of the connector's square PNG icon (32 to 1024 px, at most 512 KiB)."},
     "features": {"type": "array", "items": {"type": "string"}},
     "written_at": {"type": "string"},
     "written_by": {"type": "string"}

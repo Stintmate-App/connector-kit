@@ -31,6 +31,7 @@ looks at files named `*.json`, so the temporary file of an atomic write is never
   "mutex": "Local\\ExampleConnector.UI",
   "services": [{"id": "recorder", "name": "Recorder"}],
   "logs": ["recorder.log", "ui.log"],
+  "icon": "C:\\Program Files\\Example\\icon.png",
   "written_at": "2026-10-19T01:30:00+0200",
   "written_by": "example-connector 1.0.0"
 }
@@ -55,6 +56,7 @@ looks at files named `*.json`, so the temporary file of an atomic write is never
 | `uninstall` | array of strings, optional | The command line (argv) that removes this install with no window and no prompts; the first element must be an absolute path, else it is ignored. Another build's setup runs it before installing, and the hub's Settings runs it for Uninstall. Leave it out when nothing installed the connector (a development checkout). |
 | `window` | bool, optional | `true` when the control app serves `control.show` and `control.hide`. The hub shows its "Open window" button for the connector only when the key is `true`; leave it out (or `false`) when the connector has no window. |
 | `features` | array of strings, optional | What the connector declares it offers, from the `features` list of `vocabularies` in [`contract.json`](../contract.json): `live_frame`, `lap_status`, `capture_target`, `brake_cues`, `setups`, `fuel`, `sectors`, `conditions`, `rivals`, `wheel_channels`, `off_track`, `announcements`, `spotter`, `guidance`, `actions`, `window`, `notices`, `translated_texts`, `remembered_services`, `options` ([levels.md](levels.md) section 6 says what each one means). The hub does not read the key, so it ignores any name; the kit's checker flags a name that is not in the list. It is a declaration of the developer. |
+| `icon` | string, optional | Absolute path of a PNG file your setup installed: the connector's icon, drawn by the managing app wherever it shows the connector. Square, 32 to 1024 pixels a side (256 x 256 recommended: the hub draws it at up to about 110 pixels on a high-density screen), at most 512 KiB, on a local drive (`C:\...`). Leave it out when there is none: the managing app then draws another icon or the connector's initials. The rules are under "The icon" below. |
 | `written_at`, `written_by` | string, optional | When and by what the file was written. |
 
 A broken descriptor (missing required field, wrong types) is listed with its error and never
@@ -96,8 +98,28 @@ launched.
   `control.managed`; ignores unknown keys; and never writes the file.
 - Paths inside (`launcher`) are absolute; file names (`logs`) are relative to
   `<workspace>\connectors\<id>\`.
-- Additive changes (new optional keys) keep `schema` 1; a changed meaning bumps it. `window` and
-  `features` are such keys. A [JSON Schema](descriptor.schema.json) of the descriptor is in the kit.
+- Additive changes (new optional keys) keep `schema` 1; a changed meaning bumps it. `window`,
+  `features` and `icon` are such keys. A [JSON Schema](descriptor.schema.json) of the descriptor is in the kit.
+
+## The icon
+
+- **The path** starts with a drive letter and a separator (`^[A-Za-z]:[\\/]`) and ends in `.png`
+  (any case). A relative path, a UNC path (`\\server\share\...`) and a device or long-path prefix
+  (`\\?\`, `\\.\`) are refused and read as if the key were absent. UNC paths are refused so
+  that a managing app never touches the network, or sends the user's Windows credentials, because
+  a descriptor says so.
+- **The file** is a regular file of at most 524 288 bytes that starts with the PNG signature
+  (`89 50 4E 47 0D 0A 1A 0A`) and whose image is square, 32 to 1024 pixels a side.
+- **A bad icon never breaks the descriptor.** The descriptor stays valid and the connector is
+  managed as usual; the managing app ignores the icon (and may log why). This differs from the
+  required keys on purpose: an icon is cosmetic.
+- **The install owns it.** Your setup installs the PNG with the connector (the skeleton: `icon.png`
+  in the install folder), the registration writes `icon`, and the uninstaller removes both. A
+  managing app never copies, caches or changes the file; it reads it when it draws the connector.
+- A writer that leaves the file alone when "nothing but `written_at` would change" compares the
+  whole descriptor, so a new `icon` value rewrites it.
+- `connector-check --level features` checks it as `F.icon`: `SKIP` when the key is absent,
+  `PASS` or `FAIL` otherwise.
 
 ## Languages (`locales\`) and the language setting
 

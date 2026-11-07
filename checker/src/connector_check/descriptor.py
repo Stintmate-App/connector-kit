@@ -79,3 +79,46 @@ def launch_argv(desc: dict[str, Any], workspace: Path, parent_pid: int,
     """What the managing app runs: launcher + args + the trailing options."""
     return [desc["launcher"], *desc.get("args", []), "--workspace", str(workspace), "--managed",
             "--parent-pid", str(parent_pid), *(extra or [])]
+
+
+ICON_MAX_BYTES = 512 * 1024
+ICON_MIN_SIDE, ICON_MAX_SIDE = 32, 1024
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+ICON_PATH = re.compile(r"^[A-Za-z]:[\\/].*\.png$", re.IGNORECASE)
+
+
+def icon_problems(desc: dict[str, Any]) -> list[str]:
+    """Problems with the declared icon; none when the descriptor declares none.
+
+    The rules of descriptor.md: a local drive path to a PNG file of at most 512 KiB, square,
+    32 to 1024 pixels a side. Read with the standard library only (the PNG header holds the size).
+    """
+    if "icon" not in desc:
+        return []
+    icon = desc["icon"]
+    if not isinstance(icon, str):
+        return ["'icon' is not a string"]
+    if not ICON_PATH.match(icon):
+        return [f"icon {icon!r} is not a local drive path (C:\\...) ending in .png"]
+    path = Path(icon)
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return [f"icon {icon} does not exist"]
+    if not path.is_file():
+        return [f"icon {icon} is not a file"]
+    if size > ICON_MAX_BYTES:
+        return [f"icon {icon} is {size} bytes, more than the {ICON_MAX_BYTES} allowed"]
+    try:
+        with path.open("rb") as handle:
+            head = handle.read(24)
+    except OSError as exc:
+        return [f"icon {icon} cannot be read: {exc}"]
+    if len(head) < 24 or head[:8] != PNG_SIGNATURE or head[12:16] != b"IHDR":
+        return [f"icon {icon} is not a PNG file"]
+    width, height = int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
+    if width != height:
+        return [f"icon is {width} x {height} pixels: it must be square"]
+    if not ICON_MIN_SIDE <= width <= ICON_MAX_SIDE:
+        return [f"icon is {width} pixels a side: it must be {ICON_MIN_SIDE} to {ICON_MAX_SIDE}"]
+    return []
