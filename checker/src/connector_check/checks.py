@@ -73,6 +73,7 @@ CHECKS: list[Check] = [
     Check("M17.hold", "Hold and release when setup replaces a running connector", "manual",
           manual=True),
     Check("F.names", "Declared features are known names", "features", features=True),
+    Check("F.icon", "Declared icon is a square PNG within the limits", "static", features=True),
     Check("F.actions", "Declared actions, and test.ping answers", "features", features=True),
     Check("F.guidance", "Declared guidance reached Pitwall", "features", features=True),
     Check("F.announcements", "Declared announcement catalog reached Pitwall", "features", features=True),
@@ -198,6 +199,14 @@ def static_checks(ctx: Ctx) -> None:
         rep.failed("M1.identity", "; ".join(problems))
     else:
         rep.passed("M1.identity", f"id {desc['id']}, endpoint {desc['endpoint']}")
+    if "icon" not in desc:
+        rep.skip_group(["F.icon"], "no icon")
+    else:
+        problems = desc_mod.icon_problems(desc)
+        if problems:
+            rep.failed("F.icon", "; ".join(problems))
+        else:
+            rep.passed("F.icon", f"{desc['icon']} is a square PNG within the limits")
     problems = desc_mod.uninstall_problems(desc)
     if desc.get("uninstall") is None:
         rep.manual("M17.uninstall", "not declared: fine for a development checkout; a connector "

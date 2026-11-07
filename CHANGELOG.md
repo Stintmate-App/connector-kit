@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 (2026-11-07)
+
+- **The descriptor has a new optional key, `icon`**: the absolute path of a square PNG icon (32 to 1024 pixels a side, at most 512 KiB, 256 x 256 recommended) that your setup installs. The managing app draws it wherever it shows your connector, and falls back to another icon or your connector's initials when there is none or it is not valid. A bad icon never breaks the descriptor. Paths must start with a drive letter: relative, UNC and device paths are refused. `descriptor.md` has the rules (a new "The icon" section and a table row) and `descriptor.schema.json` the property; `levels.md` section 7 lists it. `schema` stays 1.
+- The checker has a new check, `F.icon`, at `--level features` only: `SKIP` when the descriptor has no `icon`, `PASS` or `FAIL` when it has. It is never a minimum requirement. The checker's version number follows the kit's (0.4.0).
+- The skeleton ships a neutral `icon.png` (256 x 256); `install.ps1` installs it into the install folder and writes `icon` in the descriptor, and `-Uninstall` removes it with the folder.
+- No protocol change: `contract_version` stays 3.
+
 ## 0.3.3 (2026-11-07)
 
 - `descriptor.md`: the hub now reads `window`. It shows its "Open window" button for a connector only when the key is `true`; a connector with no window leaves the key out. No protocol change: `contract_version` stays 3.

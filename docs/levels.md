@@ -129,6 +129,11 @@ Extend the contract in these places and only these:
 - **Services:** further services, each with its own connection and service name.
 - **Windows and tools:** anything of your own that reads only your own data.
 - **Options:** your own keys in your own settings file.
+- **Icon:** optional. A square PNG (32 to 1024 pixels a side, at most 512 KiB; 256 x 256
+  recommended) that your setup installs, named by the descriptor's `icon`
+  ([descriptor.md](descriptor.md)). The managing app draws it wherever it shows your connector,
+  and shows another icon or your connector's initials when there is none or it is not valid.
+  `F.icon` checks it at `--level features`.
 
 Never break these:
 
@@ -171,7 +176,7 @@ uv run --project <kit>\checker connector-check --descriptor <file> [--level mini
   longer for it; `--taken-seconds` sets how long it watches), and your registration command
   (`--register-command`) refusing to overwrite a descriptor of another product.
 - **`--level features`** also checks each name in the descriptor's `features` that it can: that the
-  names are known (`F.names`), and that a declared `announcements`, `guidance` or `actions`
+  names are known (`F.names`), that a declared `icon` is a valid PNG (`F.icon`), and that a declared `announcements`, `guidance` or `actions`
   reached the fake Pitwall (`test.ping` is called). The other features of section 6 are not checked.
 - **Sanity of the channels (M12)** is automatic for ranges, units and signs: `t`, `dist`, pedals
   in 0..1, `speed` in km/h against the lap time and length, `g_lat` in g, the length of the `x`, `z`

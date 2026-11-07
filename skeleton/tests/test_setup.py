@@ -228,6 +228,9 @@ def test_install_uninstall_and_update_in_a_temp_folder(shell, tmp_path, workspac
     assert done.returncode == 0, done.stderr + done.stdout
     d = json.loads(target.read_text(encoding="utf-8"))
     assert d["window"] is False and d["features"] == []
+    assert d["icon"] == str(dest / "icon.png")                  # absolute, in the install folder
+    assert (dest / "icon.png").read_bytes() == (ROOT / "icon.png").read_bytes()
+    assert (dest / "icon.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
     argv = d["uninstall"]
     assert Path(argv[0]).is_absolute() and argv[0].lower().endswith("windowspowershell\\v1.0\\powershell.exe")
     assert argv[argv.index("-File") + 1] == str(dest / "install.ps1")

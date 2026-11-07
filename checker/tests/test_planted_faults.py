@@ -59,6 +59,8 @@ FAULTS: dict[str, tuple[list, dict, str, str, list[str]]] = {
     "wrong_id": ([], {"id": "other"}, "M1.identity", "M1", []),
     "bad_uninstall": ([], {"uninstall": ["C:\\nowhere\\gone.exe"]}, "M17.uninstall",
                       "M17.uninstall", []),
+    "bad_icon": ([], {"icon": "\\\\server\\share\\icon.png"}, "F.icon", "F.icon",
+                 ["--level", "features"]),
     "unknown_feature": ([], {"features": ["bogus"]}, "F.names", "F.names", ["--level", "features"]),
     "strict_args": ([("main.py", "args, _unknown = p.parse_known_args(argv)", "args = p.parse_args(argv)")],
                     {}, "M2.options", "M2", []),
