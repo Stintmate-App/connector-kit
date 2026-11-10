@@ -97,7 +97,7 @@ the descriptor's `features` ([descriptor.md](descriptor.md)).
 | Capture target (`capture_target`) | Captures of the right window, and a refusal when it is minimized | `connector.capture_target` | Finding the game's window |
 | Brake cues (`brake_cues`) | Audible brake markers | `connector.telemetry`, `live` in the status, `lap_distance_m` | Live data, a `brake` channel, reference laps |
 | Setups (`setups`) | Setup tools and stint comparison | `pitwall.write.setup` at the start and at each pit exit | What the game exposes |
-| Tyre readings (`tyre_readings`) | Tyre temperatures, wear and pressures taken at stops, in the tyre report | `pitwall.write.tyre_readings` at each new set of readings | The game gives readings at stops or in the garage |
+| Simulator data (`sim_data`) | Extra game data the engineer reads (stored as sent, with your field descriptions) | `pitwall.write.sim_data_kinds` once per connection, `pitwall.write.sim_data` per new set | The game gives data at moments that the typed messages do not carry |
 | Fuel (`fuel`) | The fuel plan and fuel calls | `fuel_start_l` and `fuel_used_l` on laps, the tank capacity | Fuel readable |
 | Sectors (`sectors`) | Sector analysis | `sectors` on laps | The game's timing |
 | Conditions (`conditions`) | Weather in reports and radio | `conditions` on sessions and in the frame | A scale that matches the data model |

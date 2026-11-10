@@ -57,7 +57,8 @@ In a dry run every reply also has `"dry_run": true`.
 | `lap` | `session_id`, `lap`, `lap_id`, `stint` (the stint Pitwall stored it in) |
 | `pit_exit` | `session_id`, `stint` (the current one), `new_stint` (true: this exit started it) |
 | `setup` | `session_id`, `setup` (1..n in the session), `stint`, `stored` |
-| `tyre_readings` | `session_id`, `reading` (1..n in the session), `stint`, `stored` |
+| `sim_data` | `session_id`, `record` (1..n in the session, all kinds together), `stint`, `stored` |
+| `sim_data_kinds` | `kinds` (how many were given), `changed` (the kinds whose stored description is new or different) |
 | `participant_laps` | `session_id`, `rows`, `stored` |
 | `session_end` | `session_id`, `stored` (false = no lap: nothing kept), `laps`, `discarded` |
 
@@ -99,25 +100,35 @@ ranges: the JSON Schema. Ids are at most 200 characters and names at most 500. `
   (`brake_bias_front_pct`, `compound_front`, `compound_rear`, `pressure_fl_kpa` ...
   `pressure_rr_kpa` cold as set, `fuel_l`, `wing_front`, `wing_rear`, `abs`, `tc`) and `extra`
   `{key: {label, value, group?, unit?}}`. Only what the user sets; never readings (those go in
-  `tyre_readings`).
-- **`tyre_readings`**: the tyre readings the simulator gives at a moment that are not live
-  telemetry: the car drives into its pit box, the simulator puts it back in the pits, the player
-  gets into the car, a visit to the garage. Send one message each time the simulator gives a new
-  set, not one per wheel. Fields: `session_id`, `taken_at` (ISO 8601 with UTC offset, when the
-  simulator gave them), `occasion` (`pit_stop` the car drove into its pit box, `reset` the
-  simulator put the car back in the pits, `car_entry` the player got into the car in the pits,
-  `garage` readings shown after a visit to the garage, `other`) and `wheels`: an object with
-  the keys `fl`, `fr`, `rl`, `rr` (at least one) whose values hold only what the simulator
-  gives, each field optional but at least one per wheel: `carcass_in_c`, `carcass_mid_c`,
-  `carcass_out_c` and `surface_in_c`, `surface_mid_c`, `surface_out_c` (temperatures, C, -50 to
-  500), `tread_in`, `tread_mid`, `tread_out` (tread remaining, 0 to 1, **1 = new**) and
-  `pressure_hot_kpa` (the pressure at that moment, kPa, above 0). `in` is the edge towards the
-  car's centreline and `out` the outer edge, for every wheel: map your simulator's left and
-  right readings onto it. Never invent a value the simulator did not give. Pitwall stores the
-  readings in the current stint, with the number of the last lap it holds, and does not compare
-  them: two equal messages are two readings, so send a message only when the simulator gave new
-  values. The laps keep their own per-sample `<wheel>_*` channels; this message is for readings
-  taken at a moment. See [Tyre readings](data-model.md#tyre-readings).
+  `sim_data`).
+- **`sim_data`**: simulator data, for values the game gives **at a moment** (a pit stop, a
+  reset, a garage visit, a penalty notice, a damage report...) that no typed message above
+  carries. Fields: `session_id`, `taken_at` (ISO 8601 with UTC offset, when the simulator gave
+  the data), `kind` (your name for this structure: `^[a-z][a-z0-9_]{0,31}$`; names are your own,
+  scoped by the connection's `sim`) and `data`, a JSON object whose structure you design. Pitwall
+  stores it as sent, in the current stint, with the number of the last lap it holds, and does
+  not compare records: two equal messages are two records, so send one only when the simulator
+  gave something new. Never invent a value the simulator did not give. It is **not for samples**:
+  per-sample data goes in a lap's `channels` (a catalogue name, or `ext_<name>` for your game's
+  own channel). Limits on `data` are listed under [Limits of `sim_data`](#limits-of-sim_data).
+  Declare every kind with `sim_data_kinds` before sending records of it. See
+  [Simulator data](data-model.md#simulator-data).
+- **`sim_data_kinds`**: not session-bound (like `catalog`; send it at any time after `hello`).
+  Describes each kind so that a person or an AI agent reading the data does not have to guess:
+  `kinds`, 1 to 32 items with `kind` unique, each `{kind, description, topic?, fields}`.
+  `description` (1 to 500 characters) says what a record is and when you send one. `topic`
+  (optional) is one of `setup`, `capture`, `telemetry`, `session`, `car`, `track`, `tyres`,
+  `fuel`, `strategy`, `controls`, `other`; it lets Pitwall's reports point at related data
+  without knowing your game. `fields` (1 to 64 entries) maps a **field path** to `{meaning,
+  unit?}`: a path is the dotted keys of `data` (`wheels.fl.tread_mid`), a `*` segment stands for
+  any key or array index (`wheels.*.tread_mid`), at most 6 segments and 128 characters, each
+  segment `[A-Za-z0-9_*-]` up to 64; `meaning` is 1 to 300 characters and `unit` 1 to 24 (`C`,
+  `kPa`, `s`, `m`, `fraction`...). Pitwall stores the description per (`sim`, `kind`) and the
+  latest one is the one read, so it is safe to send it again at every session start. **A kind's
+  fields never change meaning**: adding or dropping fields is fine, but a field whose meaning or
+  unit changes gets a new kind name (`stall_tyres_v2`), so records already stored keep a
+  description that fits them. A `sim_data` whose kind was never described is still stored, and
+  reported as undescribed.
 - **`participant_laps`**: `session_id`, `laps`: rival timing rows `{participant, lap, name,
   car_id?, class_id?, is_player, time_s?, time_source?, sectors?, valid, pit, pit_stops?,
   from_line, position?, crossed_at_s?, sim_best_lap_s?, state?}` (see
@@ -138,22 +149,42 @@ They are stored as float32. **Send f32**: it is smaller and quicker to parse tha
 JSON numbers. Over IPC the same channel travels as `{"encoding": "f32", "data": <bytes>}`
 with raw bytes instead of base64.
 
+### Limits of `sim_data`
+
+Pitwall checks `data` in one pass and names the offending path in its error reply; the same
+numbers are in [`contract.json`](../contract.json) under `limits`.
+
+| Limit | Value | Error text |
+|---|---|---|
+| Type | a JSON object | `sim_data.data: must be an object` |
+| Size | at most 16,384 bytes as compact UTF-8 JSON | `sim_data.data: larger than 16384 bytes` |
+| Depth | at most 6 nested containers (`data` itself is 1) | `sim_data.data.<path>: nested deeper than 6` |
+| Keys | at most 512 keys in all objects together; each `^[A-Za-z0-9_-]{1,64}$` (no dots: dots separate field paths) | `sim_data.data: more than 512 keys` / `sim_data.data.<path>: bad key` |
+| Arrays | at most 256 items each | `sim_data.data.<path>: more than 256 items` |
+| Values | string (at most 500 characters), number, boolean, null, object, array | `sim_data.data.<path>: not a JSON value` |
+| Numbers | finite; integers within +-2^53 | `sim_data.data.<path>: not a finite number` |
+| Per session | at most 5,000 records | `sim_data: the session already holds 5000 records` |
+
+The JSON Schema can only say "an object with these key names"; the rest is Pitwall's check.
+
 ## Order rules
 
 1. `hello` first, once. Anything else before it: `<type>: send hello first`.
 2. One session open at a time. In the `pitwall-ingest` import tool `session_start` while one is
    open is refused; over IPC a `session_start` with a new key closes the open session (see
    [connector-protocol.md section 3.1](connector-protocol.md)). `lap`,
-   `setup`, `tyre_readings`, `participant_laps` and `session_end` must carry the open session's id (`lap` with
+   `setup`, `sim_data`, `participant_laps` and `session_end` must carry the open session's id (`lap` with
    no open session: `lap.session_id: no open session (send session_start first)`).
 3. References: `car_id` and `track_id`/`layout_id` must be catalogued for the connection's
    `sim`.
-4. Pitwall owns the stint: `lap`, `setup` and `tyre_readings` carry none (import mode only: an explicit
+4. Pitwall owns the stint: `lap`, `setup` and `sim_data` carry none (import mode only: an explicit
    `stint` that may not go back, and its `stints` row is created if missing). A `pit_exit`
    before the session's first lap is kept in the session's memory and starts nothing: no
-   lap has been on track yet.
+   lap has been on track yet. Send every lap that ended before a `sim_data` first, and a
+   stop's data before that stop's `pit_exit` when it belongs to the stint that ends there.
+   `sim_data_kinds` may come at any time after `hello`.
 5. **A session is stored with its first lap.** Until then the writer keeps it, and its setups,
-   tyre readings and rival rows, in memory; the first lap's transaction writes them all. A `session_end`
+   simulator data and rival rows, in memory; the first lap's transaction writes them all. A `session_end`
    with no lap discards it (`"stored": false`). Its id stays reserved for the writer's life
    (the connector may have published it), so a discarded session leaves a gap; a new writer
    process starts again from the largest id in the database.

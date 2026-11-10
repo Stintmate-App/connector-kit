@@ -120,24 +120,44 @@ differential, gears, a simulator's own electronics). Readers show `extra` as lab
 lists, grouped. A stint's setup is its last setup; changes between stints are found by
 comparing the columns and the `extra` entries.
 
-### Tyre readings
+### Simulator data
 
-Readings of the tyres that the simulator gives at a moment rather than as a stream: when the car
-drives into its pit box, when the simulator puts it back in the pits, when the player gets into
-the car, after a visit to the garage. A lap keeps the per-sample `<wheel>_*` channels; a tyre
-reading is one set of values taken at one instant.
+Pitwall's typed messages carry data that is **common to simulators and that Pitwall analyses**:
+lap times, channels, setups, stints, rivals, fuel. Anything else your game gives at a moment goes
+in **simulator data** (`sim_data`): you design the structure, Pitwall stores it as sent, and the
+race engineer (an AI agent that reads Pitwall's tools) reads it as "extra simulator data" together
+with your description of every field. A kind of simulator data can become a typed message in a
+later version, when a second simulator gives the same data and Pitwall should analyse it; records
+already stored stay as they are.
 
-Pitwall keeps one row per wheel and reading. Each reading has a number (1..n in the session,
-in arrival order), the `occasion`, the time the simulator gave it (`taken_at`), the **stint** it
-belongs to and `after_lap`, the number of the last lap Pitwall held when the reading arrived
-(none when it arrived before any lap). Pitwall gives both, so a connector sends no link to a lap.
-Send every lap that ended before the readings first, and the readings of a stop before that
-stop's `pit_exit`: then they are stored in the stint the stop ends.
+Examples of moments: the car drives into its pit box and the simulator gives the tyre values, the
+simulator puts the car back in the pits, the player gets into the car, a visit to the garage, a
+penalty notice, a damage report. Per-sample data does not belong here: a lap keeps it in its
+channels (catalogue names, or `ext_<name>` for your game's own channel).
 
-Values per wheel (`fl`, `fr`, `rl`, `rr`), all optional: carcass and tread surface temperature
-(C) and tread remaining, each at the `in` edge (towards the car's centreline), the middle and
-the `out` edge, and the hot pressure (kPa). **Tread remaining is 1 for a new tyre** and falls
-towards 0. A value the simulator does not give at that moment is absent, never estimated.
+A **record** is one `sim_data` message: a `kind`, the time the simulator gave the data
+(`taken_at`) and `data`, a JSON object. Pitwall adds a number (`record`, 1..n in the session in
+arrival order, all kinds together), the **stint** it belongs to and `after_lap`, the number of the
+last lap Pitwall held when the record arrived (none when it arrived before any lap). Pitwall gives
+both, so a connector sends no link to a lap. Send every lap that ended before the record first,
+and the record of a stop before that stop's `pit_exit`: then it is stored in the stint the stop
+ends.
+
+A **kind** is your name for a structure (`stall_tyres`, `damage_report`...). Names are yours,
+scoped by your `sim`: `stall_tyres` of two simulators are two kinds. You describe each kind once
+with `sim_data_kinds`: what a record is and when you send one, an optional `topic`, and for each
+**field path** its meaning and unit. A field path is the dotted keys of `data`; a `*` segment
+stands for any key or array index (`wheels.*.tread_mid`). Pitwall keeps the description per
+(`sim`, `kind`), apart from the records, so a session read months later still has it. The
+descriptions are what lets the engineer read your data without guessing: write them for a reader
+who has never seen your game. **A kind's fields never change meaning.** You may add or drop
+fields, and the latest description is the one read; if a field's meaning or unit changes, use a
+new kind name so older records keep a description that fits them. Send only values the simulator
+gave, never an estimate: leave a missing value out.
+
+`data` has limits (size, depth, keys, array length, string length, finite numbers, records per
+session) that Pitwall checks and names in its error replies: see
+[Limits of `sim_data`](write-api.md#limits-of-sim_data).
 
 ### Rival timing
 

@@ -238,9 +238,10 @@ write API's `hello` is not sent: Pitwall builds it from `peer.meta`.
 | Method | Extra params | Result | Idempotency key (`ik`) |
 |---|---|---|---|
 | `pitwall.write.catalog` | none | `{ok, type, classes, cars, tracks, layouts}` (counts) | `<id>/catalog/<sha256-12 of params>` |
+| `pitwall.write.sim_data_kinds` | none | `{ok, type, kinds, changed}` | `<id>/sim_data_kinds/<sha256-12 of the canonical kinds>` |
 | `pitwall.write.session_start` | `session_key` (16 hex digits, random per session, chosen by the connector) | `{ok, type, session_id}` | `<id>/<session_key>/start` |
 | `pitwall.write.setup` | `session_key`, `seq` (1.. per session) | `{ok, type, session_id, setup, stint, stored}` | `<id>/<session_key>/setup/<seq>` |
-| `pitwall.write.tyre_readings` | `session_key`, `seq` (1.. per session) | `{ok, type, session_id, reading, stint, stored}` | `<id>/<session_key>/tyre_readings/<seq>` |
+| `pitwall.write.sim_data` | `session_key`, `seq` (1.. per session, one sequence for all kinds) | `{ok, type, session_id, record, stint, stored}` | `<id>/<session_key>/sim_data/<seq>` |
 | `pitwall.write.lap` | `session_key`, `seq` (the connector's lap sequence in the session, 1..) | `{ok, type, session_id, lap, lap_id, stint}` | `<id>/<session_key>/lap/<seq>` |
 | `pitwall.write.pit_exit` | `session_key`, `seq` (1.. per session) | `{ok, type, session_id, stint, new_stint}` | `<id>/<session_key>/pit_exit/<seq>` |
 | `pitwall.write.participant_laps` | `session_key`, `seq` | `{ok, type, session_id, rows, stored}` | `<id>/<session_key>/participants/<seq>` |
@@ -961,22 +962,29 @@ written first, then `pit_exit`, then the setup taken at the exit**, so the setup
 new stint. Flush a lap still pending, and close the open lap as incomplete if the car had been
 driven, before sending the exit.
 
-**Tyre readings** (optional, feature `tyre_readings`): when the simulator gives a new set of tyre
-readings that is not live telemetry (the car drives into its pit box, is put back in the pits,
-the player gets into the car, a garage visit), send `pitwall.write.tyre_readings` once for the
-set, after every lap that ended before it and before the `pit_exit` of that stop. Pitwall stores
-it in the current stint. Send only values the simulator gave, and only when they are new.
+**Simulator data** (optional, feature `sim_data`): when the simulator gives data at a moment that
+no typed message carries (the car drives into its pit box and the tyre values appear, a garage
+visit, a damage report), describe the kind once with `pitwall.write.sim_data_kinds` (at
+connection, and again at the start of every session, which costs nothing: Pitwall writes it
+once per content) and send `pitwall.write.sim_data` once per new set of values, after every lap
+that ended before it and before the `pit_exit` of that stop. Pitwall stores it in the current
+stint. Send only values the simulator gave, and only when they are new.
 
 ```python
-c.call("pitwall.write.tyre_readings", {"session_key": key, "seq": 1, "taken_at": now(),
-       "occasion": "pit_stop",
-       "wheels": {"fl": {"carcass_in_c": 74.1, "carcass_mid_c": 75.6, "tread_mid": 0.98},
-                  "rr": {"tread_in": 0.97, "tread_mid": 0.98, "tread_out": 0.98}}},
-       timeout=30, idempotency_key=f"{ID}/{key}/tyre_readings/1")
+c.call("pitwall.write.sim_data_kinds", {"kinds": [{"kind": "stall_tyres", "topic": "tyres",
+       "description": "Tyre temperatures and tread the game gives only in the pits.",
+       "fields": {"occasion": {"meaning": "Why the car was in the pits: pit_stop or reset."},
+                  "wheels.*.tread_mid": {"meaning": "Tread remaining in the middle, 1 = new.",
+                                         "unit": "fraction"}}}]},
+       timeout=30, idempotency_key=f"{ID}/sim_data_kinds/{sha12(kinds)}")
+c.call("pitwall.write.sim_data", {"session_key": key, "seq": 1, "taken_at": now(),
+       "kind": "stall_tyres",
+       "data": {"occasion": "pit_stop", "wheels": {"fl": {"tread_mid": 0.98}}}},
+       timeout=30, idempotency_key=f"{ID}/{key}/sim_data/1")
 ```
 
-A Pitwall that predates the method answers `unknown_method`: drop the write, as the outbox rules
-say (section 3.3), and do not retry it. The fields are in [write-api.md](write-api.md).
+A Pitwall that predates the methods answers `unknown_method`: drop the write, as the outbox rules
+say (section 3.3), and do not retry it. The fields and limits are in [write-api.md](write-api.md).
 
 ### 11.3 Counters: the HUD number into `sim_lap`
 

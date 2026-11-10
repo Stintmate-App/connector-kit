@@ -175,6 +175,26 @@ def test_the_contract_json_carries_the_new_keys():
     assert not {"budgets", "write_errors", "contract_version"} & set(contract["limits"])
 
 
+def test_simulator_data_names_limits_and_schema():
+    contract = load(ROOT / "contract.json")
+    methods = contract["names"]["pitwall_methods"]
+    assert {"pitwall.write.sim_data", "pitwall.write.sim_data_kinds"} <= set(methods)
+    assert "pitwall.write.tyre_readings" not in methods
+    vocab = contract["vocabularies"]
+    assert "sim_data" in vocab["features"] and "tyre_readings" not in vocab["features"]
+    assert "tyre_occasions" not in vocab and "wheels" not in vocab
+    assert vocab["sim_data_topics"] == vocab["guidance_topics"]
+    limits = {k: v for k, v in contract["limits"].items() if k.startswith("sim_data_")}
+    assert limits == {"sim_data_fields_max": 64, "sim_data_kinds_max": 32,
+                      "sim_data_max_bytes": 16384, "sim_data_max_depth": 6,
+                      "sim_data_max_items": 256, "sim_data_max_keys": 512,
+                      "sim_data_max_per_session": 5000, "sim_data_max_text": 500}
+    defs = load(DOCS / "write-api.schema.json")["$defs"]
+    assert {"sim_data", "sim_data_kinds", "sim_data_kind", "sim_data_field"} <= set(defs)
+    assert not [name for name in defs if name.startswith("tyre")]
+    assert "tyre_readings" not in (DOCS / "write-api.schema.json").read_text(encoding="utf-8")
+
+
 def test_the_contract_json_carries_the_product_key_and_its_close_code():
     contract = load(ROOT / "contract.json")
     pattern = contract["hello_meta"]["product"]["pattern"]
