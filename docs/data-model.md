@@ -65,6 +65,10 @@ Connectors map their simulator's own values onto these. The exact lists are in
   flag) and its fuel at the end is `fuel_start_l - fuel_used_l` (not stored).
 - **Setup reason:** `session_start`, `pit_exit`, `engineer`. **Setup source:** `telemetry`
   (read from the simulator), `engineer` (written by the race engineer).
+- **Tyre reading occasion:** `pit_stop` (the car drove into its pit box), `reset` (the
+  simulator put the car back in the pits: the tyre state before a teleport, not a planned stop),
+  `car_entry` (the player got into the car in the pits), `garage` (readings shown after a visit
+  to the garage), `other`. **Wheels:** `fl`, `fr`, `rl`, `rr`.
 - **Phase** (the live frame and `connector.status`, [protocol](connector-protocol.md)):
   `menus`, `garage`, `on_track`, `paused`.
 - **Conditions** (session at its start, lap at its end): `ambient_c` C, `track_c` C, `rain`
@@ -99,7 +103,8 @@ the pit lane (the `in` lap of a stop the car did not drive out of, a teleport to
 ### Setups
 
 A setup holds what the user **sets**, never readings (hot pressures, carcass temperatures and
-ambient are telemetry and conditions). Basic parameters are columns, all optional:
+ambient are telemetry and conditions; readings taken at a moment are [tyre
+readings](#tyre-readings)). Basic parameters are columns, all optional:
 
 | Column | Meaning |
 |---|---|
@@ -114,6 +119,25 @@ Everything else goes in `extra`: a JSON object keyed by the connector's own key,
 differential, gears, a simulator's own electronics). Readers show `extra` as label + value
 lists, grouped. A stint's setup is its last setup; changes between stints are found by
 comparing the columns and the `extra` entries.
+
+### Tyre readings
+
+Readings of the tyres that the simulator gives at a moment rather than as a stream: when the car
+drives into its pit box, when the simulator puts it back in the pits, when the player gets into
+the car, after a visit to the garage. A lap keeps the per-sample `<wheel>_*` channels; a tyre
+reading is one set of values taken at one instant.
+
+Pitwall keeps one row per wheel and reading. Each reading has a number (1..n in the session,
+in arrival order), the `occasion`, the time the simulator gave it (`taken_at`), the **stint** it
+belongs to and `after_lap`, the number of the last lap Pitwall held when the reading arrived
+(none when it arrived before any lap). Pitwall gives both, so a connector sends no link to a lap.
+Send every lap that ended before the readings first, and the readings of a stop before that
+stop's `pit_exit`: then they are stored in the stint the stop ends.
+
+Values per wheel (`fl`, `fr`, `rl`, `rr`), all optional: carcass and tread surface temperature
+(C) and tread remaining, each at the `in` edge (towards the car's centreline), the middle and
+the `out` edge, and the hot pressure (kPa). **Tread remaining is 1 for a new tyre** and falls
+towards 0. A value the simulator does not give at that moment is absent, never estimated.
 
 ### Rival timing
 

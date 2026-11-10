@@ -131,7 +131,8 @@
       "pitwall.write.pit_exit",
       "pitwall.write.session_end",
       "pitwall.write.session_start",
-      "pitwall.write.setup"
+      "pitwall.write.setup",
+      "pitwall.write.tyre_readings"
     ],
     "pitwall_state": [
       "pitwall.catalogs",
@@ -234,6 +235,7 @@
       "capture_target",
       "brake_cues",
       "setups",
+      "tyre_readings",
       "fuel",
       "sectors",
       "conditions",
@@ -345,6 +347,19 @@
     "setup_sources": [
       "telemetry",
       "engineer"
+    ],
+    "tyre_occasions": [
+      "pit_stop",
+      "reset",
+      "car_entry",
+      "garage",
+      "other"
+    ],
+    "wheels": [
+      "fl",
+      "fr",
+      "rl",
+      "rr"
     ],
     "surfaces": {
       "0": "road",

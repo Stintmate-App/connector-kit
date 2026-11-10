@@ -171,7 +171,7 @@ def test_the_contract_json_carries_the_new_keys():
     assert vocab["position_channels"] == ["x", "z"]
     assert {"stopped", "starting", "loading", "connecting", "waiting_models", "waiting",
             "recording", "running"} == set(vocab["service_states"])
-    assert len(vocab["features"]) == len(set(vocab["features"])) == 20
+    assert len(vocab["features"]) == len(set(vocab["features"])) == 21
     assert not {"budgets", "write_errors", "contract_version"} & set(contract["limits"])
 
 
@@ -227,3 +227,23 @@ def test_the_skeleton_ships_the_live_frame_schema_unchanged():
     # the skeleton's tests validate its example frame against this copy once it is copied out
     copy_ = (ROOT / "skeleton" / "tests" / "live-frame.schema.json").read_bytes()
     assert copy_ == (DOCS / "live-frame.schema.json").read_bytes()
+
+
+def test_every_write_method_has_its_row_in_the_protocol_and_the_contract():
+    contract = load(ROOT / "contract.json")
+    writes = [n for n in contract["names"]["pitwall_methods"] if n.startswith("pitwall.write.")]
+    assert writes
+    protocol = (DOCS / "connector-protocol.md").read_text(encoding="utf-8")
+    contract_md = (DOCS / "contract.md").read_text(encoding="utf-8")
+    for name in writes:
+        assert re.search(rf"^\| `{re.escape(name)}`", protocol, re.M), f"{name}: connector-protocol.md"
+        assert re.search(rf"^\| `{re.escape(name)}` v1", contract_md, re.M), f"{name}: contract.md"
+
+
+def test_the_write_schema_has_a_message_for_every_write_method():
+    contract = load(ROOT / "contract.json")
+    schema = load(DOCS / "write-api.schema.json")
+    messages = {ref["$ref"].rsplit("/", 1)[1] for ref in schema["oneOf"]}
+    for name in contract["names"]["pitwall_methods"]:
+        if name.startswith("pitwall.write."):
+            assert name.rsplit(".", 1)[1] in messages, name

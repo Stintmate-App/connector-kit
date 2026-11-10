@@ -57,6 +57,7 @@ In a dry run every reply also has `"dry_run": true`.
 | `lap` | `session_id`, `lap`, `lap_id`, `stint` (the stint Pitwall stored it in) |
 | `pit_exit` | `session_id`, `stint` (the current one), `new_stint` (true: this exit started it) |
 | `setup` | `session_id`, `setup` (1..n in the session), `stint`, `stored` |
+| `tyre_readings` | `session_id`, `reading` (1..n in the session), `stint`, `stored` |
 | `participant_laps` | `session_id`, `rows`, `stored` |
 | `session_end` | `session_id`, `stored` (false = no lap: nothing kept), `laps`, `discarded` |
 
@@ -97,7 +98,26 @@ ranges: the JSON Schema. Ids are at most 200 characters and names at most 500. `
   `pit_exit` setup after the `pit_exit`, so it lands in the new stint), the basic parameters
   (`brake_bias_front_pct`, `compound_front`, `compound_rear`, `pressure_fl_kpa` ...
   `pressure_rr_kpa` cold as set, `fuel_l`, `wing_front`, `wing_rear`, `abs`, `tc`) and `extra`
-  `{key: {label, value, group?, unit?}}`. Only what the user sets; never readings.
+  `{key: {label, value, group?, unit?}}`. Only what the user sets; never readings (those go in
+  `tyre_readings`).
+- **`tyre_readings`**: the tyre readings the simulator gives at a moment that are not live
+  telemetry: the car drives into its pit box, the simulator puts it back in the pits, the player
+  gets into the car, a visit to the garage. Send one message each time the simulator gives a new
+  set, not one per wheel. Fields: `session_id`, `taken_at` (ISO 8601 with UTC offset, when the
+  simulator gave them), `occasion` (`pit_stop` the car drove into its pit box, `reset` the
+  simulator put the car back in the pits, `car_entry` the player got into the car in the pits,
+  `garage` readings shown after a visit to the garage, `other`) and `wheels`: an object with
+  the keys `fl`, `fr`, `rl`, `rr` (at least one) whose values hold only what the simulator
+  gives, each field optional but at least one per wheel: `carcass_in_c`, `carcass_mid_c`,
+  `carcass_out_c` and `surface_in_c`, `surface_mid_c`, `surface_out_c` (temperatures, C, -50 to
+  500), `tread_in`, `tread_mid`, `tread_out` (tread remaining, 0 to 1, **1 = new**) and
+  `pressure_hot_kpa` (the pressure at that moment, kPa, above 0). `in` is the edge towards the
+  car's centreline and `out` the outer edge, for every wheel: map your simulator's left and
+  right readings onto it. Never invent a value the simulator did not give. Pitwall stores the
+  readings in the current stint, with the number of the last lap it holds, and does not compare
+  them: two equal messages are two readings, so send a message only when the simulator gave new
+  values. The laps keep their own per-sample `<wheel>_*` channels; this message is for readings
+  taken at a moment. See [Tyre readings](data-model.md#tyre-readings).
 - **`participant_laps`**: `session_id`, `laps`: rival timing rows `{participant, lap, name,
   car_id?, class_id?, is_player, time_s?, time_source?, sectors?, valid, pit, pit_stops?,
   from_line, position?, crossed_at_s?, sim_best_lap_s?, state?}` (see
@@ -124,16 +144,16 @@ with raw bytes instead of base64.
 2. One session open at a time. In the `pitwall-ingest` import tool `session_start` while one is
    open is refused; over IPC a `session_start` with a new key closes the open session (see
    [connector-protocol.md section 3.1](connector-protocol.md)). `lap`,
-   `setup`, `participant_laps` and `session_end` must carry the open session's id (`lap` with
+   `setup`, `tyre_readings`, `participant_laps` and `session_end` must carry the open session's id (`lap` with
    no open session: `lap.session_id: no open session (send session_start first)`).
 3. References: `car_id` and `track_id`/`layout_id` must be catalogued for the connection's
    `sim`.
-4. Pitwall owns the stint: `lap` and `setup` carry none (import mode only: an explicit
+4. Pitwall owns the stint: `lap`, `setup` and `tyre_readings` carry none (import mode only: an explicit
    `stint` that may not go back, and its `stints` row is created if missing). A `pit_exit`
    before the session's first lap is kept in the session's memory and starts nothing: no
    lap has been on track yet.
-5. **A session is stored with its first lap.** Until then the writer keeps it, and its setups
-   and rival rows, in memory; the first lap's transaction writes them all. A `session_end`
+5. **A session is stored with its first lap.** Until then the writer keeps it, and its setups,
+   tyre readings and rival rows, in memory; the first lap's transaction writes them all. A `session_end`
    with no lap discards it (`"stored": false`). Its id stays reserved for the writer's life
    (the connector may have published it), so a discarded session leaves a gap; a new writer
    process starts again from the largest id in the database.

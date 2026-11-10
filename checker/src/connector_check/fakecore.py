@@ -21,8 +21,8 @@ from typing import Any
 import jsonschema
 from stintmate_ipc import Endpoint, PeerInfo, RemoteError
 
-WRITES = ("catalog", "session_start", "lap", "pit_exit", "setup", "participant_laps",
-          "session_end")
+WRITES = ("catalog", "session_start", "lap", "pit_exit", "setup", "tyre_readings",
+          "participant_laps", "session_end")
 DECLARES = ("pitwall.catalog.declare", "pitwall.guidance.declare", "pitwall.actions.declare")
 SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 SIM = re.compile(r"^[a-z0-9_-]{1,32}$")
