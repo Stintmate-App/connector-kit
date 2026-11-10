@@ -14,7 +14,7 @@ class ControlLink:
     """Connect to ``connector-<id>``, keep every ``control.state`` value with its time, and call
     methods. ``connect`` retries until the endpoint is served."""
 
-    INFO = PeerInfo("connector-check", name="connector-check", version="0.5.0")
+    INFO = PeerInfo("connector-check", name="connector-check", version="0.6.0")
 
     def __init__(self, pipe: str, key: bytes) -> None:
         self.pipe, self.key = pipe, key

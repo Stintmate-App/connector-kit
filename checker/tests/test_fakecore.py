@@ -175,3 +175,37 @@ def test_hello_rules_need_a_valid_product():
         if bad is None:
             del meta["product"]
         assert "product" in FakeCore.hello_problem(info(meta=meta)), bad
+
+
+def test_simulator_data_kinds_records_and_limits(core):
+    peer = dial(core)
+    call = lambda m, p, ik: peer.call(f"pitwall.write.{m}", p, idempotency_key=ik)  # noqa: E731
+    call("catalog", CATALOG, "demo/c")
+    call("session_start", {"session_key": KEY16, "started_at": "2026-01-01T00:00:00+00:00",
+                           "session_type": "practice"}, "demo/s")
+    kinds = {"kinds": [{"kind": "stall_tyres", "description": "d", "topic": "tyres",
+                        "fields": {"wheels.*.tread_mid": {"meaning": "m", "unit": "fraction"}}}]}
+    assert call("sim_data_kinds", kinds, "demo/k1") == {
+        "ok": True, "type": "sim_data_kinds", "kinds": 1, "changed": ["stall_tyres"]}
+    assert call("sim_data_kinds", kinds, "demo/k2")["changed"] == []
+    record = {"session_key": KEY16, "seq": 1, "taken_at": "2026-01-01T00:00:01+00:00",
+              "kind": "stall_tyres", "data": {"wheels": {"fl": {"tread_mid": 0.98}}}}
+    assert call("sim_data", record, "demo/d1") == {
+        "ok": True, "type": "sim_data", "session_id": 1, "record": 1, "stint": 1, "stored": True}
+    for seq, data, text in ((2, {"a": "x" * 501}, "a string of more than 500"),
+                            (3, {"a.b": 1}, "does not match"),
+                            (4, {"k": ["x" * 400] * 41}, "larger than 16384 bytes"),
+                            (5, {"a": {"b": {"c": {"d": {"e": {"f": {}}}}}}}, "nested deeper")):
+        with pytest.raises(RemoteError) as e:
+            call("sim_data", {**record, "seq": seq, "data": data}, f"demo/d{seq}")
+        assert e.value.code == "bad_request" and text in str(e.value), (seq, str(e.value))
+    with pytest.raises(RemoteError):
+        call("sim_data_kinds", {"kinds": []}, "demo/k3")
+
+
+def test_the_simulator_data_limits_are_the_contracts():
+    from connector_check.fakecore import SIM_DATA_LIMITS
+
+    limits = json.loads((KIT / "contract.json").read_text())["limits"]
+    assert {f"sim_data_max_{k}": v for k, v in SIM_DATA_LIMITS.items()} == {
+        k: v for k, v in limits.items() if k.startswith("sim_data_max_")}

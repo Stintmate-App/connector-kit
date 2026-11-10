@@ -21,8 +21,13 @@ from typing import Any
 import jsonschema
 from stintmate_ipc import Endpoint, PeerInfo, RemoteError
 
-WRITES = ("catalog", "session_start", "lap", "pit_exit", "setup", "tyre_readings",
-          "participant_laps", "session_end")
+WRITES = ("catalog", "sim_data_kinds", "session_start", "lap", "pit_exit", "setup",
+          "sim_data", "participant_laps", "session_end")
+# contract.json limits.sim_data_*; tests/test_contract_files.py keeps them equal.
+SIM_DATA_LIMITS = {"bytes": 16384, "depth": 6, "keys": 512, "items": 256, "text": 500,
+                   "per_session": 5000}
+DATA_KEY = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+KIND_PATH = re.compile(r"^[A-Za-z0-9_*-]{1,64}(\.[A-Za-z0-9_*-]{1,64}){0,5}$")
 DECLARES = ("pitwall.catalog.declare", "pitwall.guidance.declare", "pitwall.actions.declare")
 SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 SIM = re.compile(r"^[a-z0-9_-]{1,32}$")
@@ -79,6 +84,53 @@ def decode_channel(value: Any) -> list[float]:
     raise ValueError("a channel is a list of numbers or {encoding: f32, data: bytes}")
 
 
+def check_sim_data(data: Any) -> None:
+    """The limits of ``sim_data.data`` (docs/write-api.md), with Pitwall's error texts."""
+    lim = SIM_DATA_LIMITS
+    if not isinstance(data, dict):
+        raise _Refused("bad_request", "sim_data.data: must be an object")
+    keys = 0
+
+    def walk(value: Any, path: str, depth: int) -> None:
+        nonlocal keys
+        if isinstance(value, dict):
+            if depth > lim["depth"]:
+                raise _Refused("bad_request", f"{path}: nested deeper than {lim['depth']}")
+            for key, item in value.items():
+                if not DATA_KEY.match(key):
+                    raise _Refused("bad_request", f"{path}.{key}: bad key")
+                keys += 1
+                if keys > lim["keys"]:
+                    raise _Refused("bad_request", f"sim_data.data: more than {lim['keys']} keys")
+                walk(item, f"{path}.{key}", depth + 1)
+        elif isinstance(value, list):
+            if depth > lim["depth"]:
+                raise _Refused("bad_request", f"{path}: nested deeper than {lim['depth']}")
+            if len(value) > lim["items"]:
+                raise _Refused("bad_request", f"{path}: more than {lim['items']} items")
+            for i, item in enumerate(value):
+                walk(item, f"{path}[{i}]", depth + 1)
+        elif isinstance(value, str):
+            if len(value) > lim["text"]:
+                raise _Refused("bad_request", f"{path}: a string of more than {lim['text']} "
+                                              "characters")
+        elif value is None or isinstance(value, bool):
+            return
+        elif isinstance(value, int):
+            if abs(value) > 2 ** 53:
+                raise _Refused("bad_request", f"{path}: not a finite number")
+        elif isinstance(value, float):
+            if value != value or value in (float("inf"), float("-inf")):
+                raise _Refused("bad_request", f"{path}: not a finite number")
+        else:
+            raise _Refused("bad_request", f"{path}: not a JSON value")
+
+    walk(data, "sim_data.data", 1)
+    size = len(json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+    if size > lim["bytes"]:
+        raise _Refused("bad_request", f"sim_data.data: larger than {lim['bytes']} bytes")
+
+
 class FakeCore:
     def __init__(self, pipe: str, key: bytes, write_schema: dict[str, Any]) -> None:
         self.pipe, self.key = pipe, key
@@ -94,6 +146,7 @@ class FakeCore:
         self.status: list[tuple[float, dict[str, Any]]] = []
         self.status_errors: list[str] = []
         self.declared: dict[str, Any] = {}
+        self.sim_data_kinds: dict[str, dict[str, Any]] = {}
         self.announces: list[dict[str, Any]] = []
         self.peers: list[Any] = []
         self.sessions: dict[str, dict[str, Any]] = {}
@@ -360,7 +413,7 @@ class FakeCore:
             raise _Refused("bad_request", "params must be an object")
         msg = {k: v for k, v in params.items() if k not in ("session_key", "seq")}
         msg["type"] = kind
-        if kind not in ("catalog", "session_start"):
+        if kind not in ("catalog", "session_start", "sim_data_kinds"):
             msg["session_id"] = 1
         channels = None
         if isinstance(msg.get("channels"), dict):
@@ -374,6 +427,8 @@ class FakeCore:
         if error is not None:
             where = "/".join(str(p) for p in error.absolute_path) or kind
             raise _Refused("bad_request", f"{where}: {error.message}")
+        if kind == "sim_data_kinds":
+            return self._sim_data_kinds(msg)
         if kind == "catalog":
             return self._catalog(msg)
         if kind == "session_start":
@@ -390,6 +445,14 @@ class FakeCore:
             if isinstance(seq, bool) or not isinstance(seq, int) or seq < 1 or seq <= last:
                 raise _Refused("bad_request", f"{kind} seq {seq!r} must be an integer above {last}")
             session["seq"][kind] = seq
+        if kind == "sim_data":
+            check_sim_data(msg.get("data"))
+            if session.get("records", 0) >= SIM_DATA_LIMITS["per_session"]:
+                raise _Refused("bad_request", "sim_data: the session already holds "
+                                              f"{SIM_DATA_LIMITS['per_session']} records")
+            session["records"] = session.get("records", 0) + 1
+            return {"ok": True, "type": "sim_data", "session_id": session["id"],
+                    "record": session["records"], "stint": session["stint"], "stored": True}
         if kind == "lap":
             return self._lap(session, msg, channels)
         if kind == "pit_exit":
@@ -405,6 +468,21 @@ class FakeCore:
             return {"ok": True, "type": "session_end", "session_id": session["id"],
                     "stored": True, "laps": session["laps"], "discarded": 0}
         return {"ok": True, "type": kind, "session_id": session["id"]}
+
+    def _sim_data_kinds(self, msg: dict[str, Any]) -> dict[str, Any]:
+        kinds = msg["kinds"]
+        names = [k["kind"] for k in kinds]
+        if len(set(names)) != len(names):
+            raise _Refused("bad_request", "sim_data_kinds.kinds: a kind is described twice")
+        for i, k in enumerate(kinds):
+            for path in k["fields"]:
+                if len(path) > 128 or not KIND_PATH.match(path):
+                    raise _Refused("bad_request", f"sim_data_kinds.kinds[{i}].fields.{path}: "
+                                                  "bad field path")
+        changed = [k["kind"] for k in kinds if self.sim_data_kinds.get(k["kind"]) != k]
+        for k in kinds:
+            self.sim_data_kinds[k["kind"]] = k
+        return {"ok": True, "type": "sim_data_kinds", "kinds": len(kinds), "changed": changed}
 
     def _catalog(self, msg: dict[str, Any]) -> dict[str, Any]:
         for field, bucket, ident in (("classes", "classes", ("class_id",)),
