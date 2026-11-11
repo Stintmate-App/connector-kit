@@ -209,3 +209,29 @@ def test_the_simulator_data_limits_are_the_contracts():
     limits = json.loads((KIT / "contract.json").read_text())["limits"]
     assert {f"sim_data_max_{k}": v for k, v in SIM_DATA_LIMITS.items()} == {
         k: v for k, v in limits.items() if k.startswith("sim_data_max_")}
+
+
+def test_lap_positions_are_accepted_for_a_closed_session_and_checked(core):
+    import struct
+
+    def chan(n):
+        return {"encoding": "f32", "data": struct.pack(f"<{n}f", *range(n))}
+
+    peer = dial(core)
+    call = lambda m, p, ik: peer.call(f"pitwall.write.{m}", p, idempotency_key=ik)  # noqa: E731
+    call("catalog", CATALOG, "demo/c")
+    call("session_start", {"session_key": KEY16, "started_at": "2026-01-01T00:00:00+00:00",
+                           "session_type": "practice"}, "demo/s")
+    call("lap", {**lap(1), "channels": {"t": chan(4), "dist": chan(4), "speed": chan(4)}},
+         "demo/l1")
+    call("session_end", {"session_key": KEY16, "ended_at": "2026-01-01T01:00:00+00:00"}, "demo/e")
+    msg = {"session_key": KEY16, "lap_seq": 1, "channels": {"x": chan(4), "z": chan(4)}}
+    assert call("lap_positions", msg, "demo/p1") == {
+        "ok": True, "type": "lap_positions", "session_id": 1, "lap": 1, "lap_id": 1,
+        "channels": ["x", "z"]}
+    for bad, text in (({**msg, "lap_seq": 7}, "no stored lap with seq 7"),
+                      ({**msg, "channels": {"x": chan(5), "z": chan(5)}}, "5 samples, lap 1 has 4"),
+                      ({**msg, "channels": {"x": chan(4)}}, "'z' is a required property")):
+        with pytest.raises(RemoteError) as e:
+            call("lap_positions", bad, f"demo/{text[:6]}")
+        assert e.value.code == "bad_request" and text in str(e.value), text
