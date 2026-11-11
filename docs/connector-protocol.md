@@ -292,6 +292,15 @@ deleted on `ok`, moved aside on a non-retryable error, kept and retried (same `i
 retryable one or after the reconnect. Pitwall's idempotency makes a write sent twice stored
 once. Show the backlog in `connector.status.outbox`.
 
+**Optional write methods** (`pitwall.write.sim_data_kinds`, `pitwall.write.sim_data`,
+`pitwall.write.lap_positions`) are newer than some Pitwall versions a user may still run. Pitwall
+declares every write method it accepts in the declarations of its `welcome` (and of any later
+`decl` message), one name per method. Before sending an optional write, check that the linked
+Pitwall declares its method; when it does not, drop the write without sending it, log that once,
+and do not count it as refused: nothing went wrong, that Pitwall just does not store that data. An
+optional write answered with `unknown_method` is handled the same way. A required write that
+gets `unknown_method` is still a refusal.
+
 ## 4. Captures: Pitwall grabs, the connector names the window
 
 The engineer looks at what the simulator shows (a setup screen, timing, results) through
@@ -984,8 +993,8 @@ c.call("pitwall.write.sim_data", {"session_key": key, "seq": 1, "taken_at": now(
        timeout=30, idempotency_key=f"{ID}/{key}/sim_data/1")
 ```
 
-A Pitwall that predates the methods answers `unknown_method`: drop the write, as the outbox rules
-say (section 3.3), and do not retry it. The fields and limits are in [write-api.md](write-api.md).
+A Pitwall that predates the methods does not declare them: skip those writes, as section 3.3 says
+for optional write methods (it answers `unknown_method` if they are sent anyway). The fields and limits are in [write-api.md](write-api.md).
 
 **Better positions after the session** (optional, feature `lap_positions`): when the game writes
 exact positions somewhere you can read only after the session (or after the lap), send
@@ -997,8 +1006,8 @@ It replaces those channels of the stored lap and nothing else. The idempotency k
 Unlike every other session write it is accepted **after `session_end`**: Pitwall looks the key up
 among your sessions, open or closed, so `session_closed` is not an answer this method gets (a key
 that was never started is `unknown_session`, as for the others). Send it after the lap it names
-(the outbox's order does that). A Pitwall that predates the method answers `unknown_method`: drop
-the write, as the outbox rules say (section 3.3), and do not retry it.
+(the outbox's order does that). A Pitwall that predates the method does not declare it: skip those
+writes, as section 3.3 says for optional write methods.
 
 ### 11.3 Counters: the HUD number into `sim_lap`
 

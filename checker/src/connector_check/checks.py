@@ -968,6 +968,9 @@ def session_checks(ctx: Ctx) -> None:
            "M13.keys", "M16.logs"]
     if not need_game(ctx, ids):
         return
+    # The recorder may still be starting (or restarting after an earlier group) when the group
+    # begins: wait for it to settle instead of judging one sample.
+    ctx.link.wait_for(lambda s: (recorder_of(s) or {}).get("state") == "waiting", 20.0)
     pre = (recorder_of(ctx.link.latest) or {}).get("state")
     base, ended = core.mark(), core.ended_count
     sess.settle(ctx)
