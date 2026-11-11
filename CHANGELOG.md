@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1 (2026-11-11)
+
+- **Optional write methods only to a Pitwall that declares them.** `connector-protocol.md` section 3.3 now says how a connector handles `pitwall.write.sim_data_kinds`, `pitwall.write.sim_data` and `pitwall.write.lap_positions` with an older Pitwall: Pitwall declares every write method it accepts in its `welcome` declarations, so check before sending, drop an optional write the linked Pitwall does not declare (log once, not a refusal), and treat an `unknown_method` answer to an optional write the same way. Required writes keep the old rule.
+- **The checker waits for the recorder to settle before judging `M6.recorder`.** It read the recorder's state once when the session checks began, so a recorder still starting (or restarting after an earlier check) could fail the check on a slow machine; it now waits up to 20 s for `waiting`.
+- **The checker's README explains the CPU window.** Windows counts CPU time in steps of about 15.6 ms, so a window of a few seconds cannot resolve the 0.5 % idle budget; keep `--cpu-seconds` at 30 or more for a verdict. The kit's own end-to-end test now measures 30 s.
+- No protocol change: `contract_version` stays 3 and the data model stays 2.
+
 ## 0.7.0 (2026-11-11)
 
 - **A new optional write API message, `lap_positions`, for better positions of laps you already sent.** Some games write exact positions somewhere a connector can read only after the lap or the session. One message per lap, `session_id`, `lap` and `channels`, replaces (or adds) the lap's position channels and nothing else: `x` and `z` are required (metres, plan view), `y` (up) is optional, nothing else is accepted, the encodings are those of a lap's channels, and each channel has exactly as many samples as the stored lap, all finite. Pitwall accepts it for an open or a closed session of the same connector, requires the lap to exist and hold channels, and, when the replaced lap is the layout's outline source or had no position before, redraws the track outline. A second message for the same lap (with another idempotency key) replaces again. `write-api.md` (the reply row, the message, the order rule), `data-model.md` (the outline sentence) and `write-api.schema.json` (`lap_positions`) describe it.

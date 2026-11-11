@@ -30,7 +30,7 @@ the connector once and measures the CPU for `--cpu-seconds`.
 | `--skip-session` | Do not play a session; the checks that need one are skipped |
 | `--fake-game-file <path>` | A file whose existence means "the game runs". The checker creates and removes it. `{workspace}` and `{id}` are replaced; a relative path is relative to the checker's temporary workspace. Without it the checker asks you to play a session, and the checks that need further sessions are skipped |
 | `--session-timeout 1800` | Seconds to wait for a session to end |
-| `--cpu-seconds 60` | Length of the idle CPU measurement |
+| `--cpu-seconds 60` | Length of the idle CPU measurement. Windows counts CPU time in steps of about 15.6 ms, so a short window cannot resolve the 0.5 % budget (25 ms in 5 s is less than two steps): keep it at 30 s or more for a verdict |
 | `--instance-env NAME` | The variable that carries the tag (default `STINTMATE_DEV_INSTANCE`) |
 | `--mutex <name>` | The tagged mutex name, for a connector whose rule differs from the descriptor's mutex plus `.<tag>` |
 | `--no-position` | The game gives no position: `x` and `z` are not required |

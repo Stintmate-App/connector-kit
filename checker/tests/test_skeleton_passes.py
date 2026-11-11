@@ -46,7 +46,7 @@ def test_the_skeleton_passes_beside_a_real_stintmate(tmp_path):
     report = tmp_path / "report.json"
     done = subprocess.run(
         [sys.executable, "-m", "connector_check.cli", "--descriptor", str(descriptor),
-         "--fake-game-file", r"{workspace}\connectors\{id}\fake_game", "--cpu-seconds", "5",
+         "--fake-game-file", r"{workspace}\connectors\{id}\fake_game", "--cpu-seconds", "30",
          "--link-seconds", "10", "--start-timeout", "30", "--report", str(report),
          "--register-command", json.dumps(REGISTER)],
         capture_output=True, text=True, timeout=900)
