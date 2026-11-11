@@ -100,7 +100,7 @@ Fields, plus `session_key`, `connector_id`, `at`:
 | `lap_time_s` | Lap time, or `null` for laps that are not timed. |
 | `time_source` | `official` (the simulator's time) or `measured` (the connector's clock). |
 | `sectors_s` | Sector times in order, as many as the simulator has (`[s1, s2, s3]` for most); items may be `null`. |
-| `delta_session_best_s` | Lap time minus the best previous clean lap of the session (negative = faster). `null` for the first clean lap or for laps that are not clean (timed, valid, flying). |
+| `delta_session_best_s` | Lap time minus the best previous clean lap of the session (negative = faster). `null` for the first clean lap or for laps that are not clean (`data-model.md`: flying, timed, valid, no long four-wheel excursion). |
 | `delta_stint_best_s` | Same, against the current stint only. |
 | `session_best` | True if this lap is the new session best. |
 | `fuel_used_l`, `fuel_left_l` | Fuel used on this lap and left at its end. |

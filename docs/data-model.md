@@ -57,7 +57,10 @@ Connectors map their simulator's own values onto these. The exact lists are in
 - **Session type:** `practice`, `qualifying`, `race`, `warmup`, `other`.
 - **Lap type:** `formation` (before a race start, never timed), `out` (leaves the pits or the
   garage), `in` (ends in the pits), `flying` (line to line on track).
-- **Clean lap** = `flying`, timed (`time_s` not NULL) and `valid`. Best laps, stints' bests
+- **Clean lap** = `flying`, timed (`time_s` not NULL), `valid`, and with no excursion of all
+  four wheels off track (the wheel surface channels, outside the pits) lasting 2 s or more: a
+  lap your game left valid after a long trip across the grass is not clean. A lap without the
+  wheel surface channels is judged by the first three conditions only. Best laps, stints' bests
   and best sectors use clean laps only.
 - **Time source:** `official` (the simulator's time) or `measured` (the connector's clock);
   rival laps may also be `sectors` (summed from the sector times). A lap may also keep
