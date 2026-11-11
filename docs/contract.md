@@ -190,6 +190,7 @@ raw bytes); arrays of numbers stay accepted. The write API's `hello` is built fr
 | `pitwall.write.sim_data` v1 | `session_key`, `seq: int` (1.. per session, one sequence for all kinds) | `{ok, type, session_id, record, stint, stored}` | `<id>/<session_key>/sim_data/<seq>` |
 | `pitwall.write.sim_data_kinds` v1 | none | `{ok, type, kinds, changed}` | `<id>/sim_data_kinds/<sha256-12 of the canonical kinds>` |
 | `pitwall.write.lap` v1 | `session_key`, `seq: int` (the connector's lap sequence in the session, 1..) | `{ok, type, session_id, lap, lap_id, stint}` | `<id>/<session_key>/lap/<seq>` |
+| `pitwall.write.lap_positions` v1 | `session_key`, `lap_seq: int` (the `seq` of that lap's `pitwall.write.lap`) | `{ok, type, session_id, lap, lap_id, channels}` | `<id>/<session_key>/lap_positions/<lap_seq>` |
 | `pitwall.write.participant_laps` v1 | `session_key`, `seq: int` | `{ok, type, session_id, rows, stored}` | `<id>/<session_key>/participants/<seq>` |
 | `pitwall.write.pit_exit` v1 | `session_key`, `seq: int` (1.. per session) | `{ok, type, session_id, stint, new_stint}` | `<id>/<session_key>/pit_exit/<seq>` |
 | `pitwall.write.session_end` v1 | `session_key` | `{ok, type, session_id, stored, laps, discarded}` | `<id>/<session_key>/end` |

@@ -171,7 +171,7 @@ def test_the_contract_json_carries_the_new_keys():
     assert vocab["position_channels"] == ["x", "z"]
     assert {"stopped", "starting", "loading", "connecting", "waiting_models", "waiting",
             "recording", "running"} == set(vocab["service_states"])
-    assert len(vocab["features"]) == len(set(vocab["features"])) == 21
+    assert len(vocab["features"]) == len(set(vocab["features"])) == 22
     assert not {"budgets", "write_errors", "contract_version"} & set(contract["limits"])
 
 
@@ -267,3 +267,14 @@ def test_the_write_schema_has_a_message_for_every_write_method():
     for name in contract["names"]["pitwall_methods"]:
         if name.startswith("pitwall.write."):
             assert name.rsplit(".", 1)[1] in messages, name
+
+
+def test_lap_positions_method_feature_and_schema():
+    contract = load(ROOT / "contract.json")
+    assert "pitwall.write.lap_positions" in contract["names"]["pitwall_methods"]
+    assert "lap_positions" in contract["vocabularies"]["features"]
+    schema = load(DOCS / "write-api.schema.json")
+    assert "lap_positions" in schema["$defs"]
+    assert {"$ref": "#/$defs/lap_positions"} in schema["oneOf"]
+    channels = schema["$defs"]["lap_positions"]["properties"]["channels"]
+    assert channels["required"] == ["x", "z"] and channels["additionalProperties"] is False

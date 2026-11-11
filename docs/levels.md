@@ -98,6 +98,7 @@ the descriptor's `features` ([descriptor.md](descriptor.md)).
 | Brake cues (`brake_cues`) | Audible brake markers | `connector.telemetry`, `live` in the status, `lap_distance_m` | Live data, a `brake` channel, reference laps |
 | Setups (`setups`) | Setup tools and stint comparison | `pitwall.write.setup` at the start and at each pit exit | What the game exposes |
 | Simulator data (`sim_data`) | Extra game data the engineer reads (stored as sent, with your field descriptions) | `pitwall.write.sim_data_kinds` once per connection, `pitwall.write.sim_data` per new set | The game gives data at moments that the typed messages do not carry |
+| Better positions after the session (`lap_positions`) | Exact track outlines and maps when the connector learns positions after the session | `pitwall.write.lap_positions` per lap | The game writes exact positions somewhere the connector can read after the session |
 | Fuel (`fuel`) | The fuel plan and fuel calls | `fuel_start_l` and `fuel_used_l` on laps, the tank capacity | Fuel readable |
 | Sectors (`sectors`) | Sector analysis | `sectors` on laps | The game's timing |
 | Conditions (`conditions`) | Weather in reports and radio | `conditions` on sessions and in the frame | A scale that matches the data model |

@@ -59,6 +59,7 @@ In a dry run every reply also has `"dry_run": true`.
 | `setup` | `session_id`, `setup` (1..n in the session), `stint`, `stored` |
 | `sim_data` | `session_id`, `record` (1..n in the session, all kinds together), `stint`, `stored` |
 | `sim_data_kinds` | `kinds` (how many were given), `changed` (the kinds whose stored description is new or different) |
+| `lap_positions` | `session_id`, `lap`, `lap_id`, `channels` (the names replaced, sorted) |
 | `participant_laps` | `session_id`, `rows`, `stored` |
 | `session_end` | `session_id`, `stored` (false = no lap: nothing kept), `laps`, `discarded` |
 
@@ -133,6 +134,23 @@ ranges: the JSON Schema. Ids are at most 200 characters and names at most 500. `
   car_id?, class_id?, is_player, time_s?, time_source?, sectors?, valid, pit, pit_stops?,
   from_line, position?, crossed_at_s?, sim_best_lap_s?, state?}` (see
   [Rival timing](data-model.md#rival-timing)).
+- **`lap_positions`**: better positions for a lap you already sent, learned after the fact: `session_id`, `lap`
+  (Pitwall's number of the lap in the session; over IPC you give `lap_seq` instead, see
+  [connector-protocol.md section 3.1](connector-protocol.md#31-the-write-methods)) and `channels`,
+  which holds `x` and `z` (both required, metres, plan view) and optionally `y` (up), and nothing
+  else, in the same encodings as a lap's channels. Each channel must have exactly as many samples
+  as the stored lap (`samples`), and every value must be finite. It replaces (or adds) those
+  channels of the lap in one transaction and changes nothing else: the lap's other columns,
+  channels, sectors and stints stay. After the session is fine: it is accepted for a closed
+  session as well, as long as the session is the connection's own (`pitwall-ingest`: the session's
+  connector must equal the `hello`'s). The lap must exist and have channels. Sending it twice for
+  one lap replaces again. Pitwall redraws the layout's track outline when the replaced lap is the
+  outline's source or the lap had no `x`/`z` before. Errors name the field:
+  `lap_positions.channels: give x and z; only x, y and z are accepted`,
+  `lap_positions.channels.x: 7203 samples, lap 5 has 7200`,
+  `lap_positions.lap: session 28 has no lap 9`,
+  `lap_positions: lap 5 of session 28 has no channels`,
+  `lap_positions: session 28 was recorded by connector <id>`.
 - **`session_end`**: `session_id`, `ended_at`.
 
 ### Channels
@@ -174,7 +192,7 @@ The JSON Schema can only say "an object with these key names"; the rest is Pitwa
    open is refused; over IPC a `session_start` with a new key closes the open session (see
    [connector-protocol.md section 3.1](connector-protocol.md)). `lap`,
    `setup`, `sim_data`, `participant_laps` and `session_end` must carry the open session's id (`lap` with
-   no open session: `lap.session_id: no open session (send session_start first)`).
+   no open session: `lap.session_id: no open session (send session_start first)`). `lap_positions` names a stored lap of the connector's own session instead, open or closed (rule 4).
 3. References: `car_id` and `track_id`/`layout_id` must be catalogued for the connection's
    `sim`.
 4. Pitwall owns the stint: `lap`, `setup` and `sim_data` carry none (import mode only: an explicit
@@ -182,7 +200,8 @@ The JSON Schema can only say "an object with these key names"; the rest is Pitwa
    before the session's first lap is kept in the session's memory and starts nothing: no
    lap has been on track yet. Send every lap that ended before a `sim_data` first, and a
    stop's data before that stop's `pit_exit` when it belongs to the stint that ends there.
-   `sim_data_kinds` may come at any time after `hello`.
+   `sim_data_kinds` may come at any time after `hello`. `lap_positions` may come after the
+   `session_end` of its session, but only after the lap it names.
 5. **A session is stored with its first lap.** Until then the writer keeps it, and its setups,
    simulator data and rival rows, in memory; the first lap's transaction writes them all. A `session_end`
    with no lap discards it (`"stored": false`). Its id stays reserved for the writer's life

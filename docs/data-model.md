@@ -44,7 +44,8 @@ uses its own `sim` as a data namespace; share one only with identical ids
 ([connectors.md section 7](connectors.md#7-several-connectors-for-one-game)).
 
 Pitwall also keeps a track outline per layout, computed from the layout's best clean lap; you
-send nothing for it.
+send nothing for it. If a connector later sends better positions for a lap (`lap_positions`), the
+outline is redrawn when that lap is its source, or when the lap had no position before.
 
 Times are ISO 8601 text **with a UTC offset** (`2026-10-18T18:00:00+02:00`).
 

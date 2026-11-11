@@ -243,6 +243,7 @@ write API's `hello` is not sent: Pitwall builds it from `peer.meta`.
 | `pitwall.write.setup` | `session_key`, `seq` (1.. per session) | `{ok, type, session_id, setup, stint, stored}` | `<id>/<session_key>/setup/<seq>` |
 | `pitwall.write.sim_data` | `session_key`, `seq` (1.. per session, one sequence for all kinds) | `{ok, type, session_id, record, stint, stored}` | `<id>/<session_key>/sim_data/<seq>` |
 | `pitwall.write.lap` | `session_key`, `seq` (the connector's lap sequence in the session, 1..) | `{ok, type, session_id, lap, lap_id, stint}` | `<id>/<session_key>/lap/<seq>` |
+| `pitwall.write.lap_positions` | `session_key`, `lap_seq` (the `seq` of that lap's `pitwall.write.lap`) | `{ok, type, session_id, lap, lap_id, channels}` | `<id>/<session_key>/lap_positions/<lap_seq>` |
 | `pitwall.write.pit_exit` | `session_key`, `seq` (1.. per session) | `{ok, type, session_id, stint, new_stint}` | `<id>/<session_key>/pit_exit/<seq>` |
 | `pitwall.write.participant_laps` | `session_key`, `seq` | `{ok, type, session_id, rows, stored}` | `<id>/<session_key>/participants/<seq>` |
 | `pitwall.write.session_end` | `session_key` | `{ok, type, session_id, stored, laps, discarded}` | `<id>/<session_key>/end` |
@@ -985,6 +986,19 @@ c.call("pitwall.write.sim_data", {"session_key": key, "seq": 1, "taken_at": now(
 
 A Pitwall that predates the methods answers `unknown_method`: drop the write, as the outbox rules
 say (section 3.3), and do not retry it. The fields and limits are in [write-api.md](write-api.md).
+
+**Better positions after the session** (optional, feature `lap_positions`): when the game writes
+exact positions somewhere you can read only after the session (or after the lap), send
+`pitwall.write.lap_positions` once per lap with `{session_key, lap_seq, channels}`: `lap_seq` is the
+`seq` you gave that lap's `pitwall.write.lap`, so you never need the lap's reply to name it, and
+`channels` holds `x` and `z` (and optionally `y`) with exactly as many samples as the lap you sent.
+It replaces those channels of the stored lap and nothing else. The idempotency key is
+`<id>/<session_key>/lap_positions/<lap_seq>`; the write is ordered and idempotent like the others.
+Unlike every other session write it is accepted **after `session_end`**: Pitwall looks the key up
+among your sessions, open or closed, so `session_closed` is not an answer this method gets (a key
+that was never started is `unknown_session`, as for the others). Send it after the lap it names
+(the outbox's order does that). A Pitwall that predates the method answers `unknown_method`: drop
+the write, as the outbox rules say (section 3.3), and do not retry it.
 
 ### 11.3 Counters: the HUD number into `sim_lap`
 
