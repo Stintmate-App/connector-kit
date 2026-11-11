@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import threading
 import time
@@ -22,7 +23,7 @@ import jsonschema
 from stintmate_ipc import Endpoint, PeerInfo, RemoteError
 
 WRITES = ("catalog", "sim_data_kinds", "session_start", "lap", "pit_exit", "setup",
-          "sim_data", "participant_laps", "session_end")
+          "sim_data", "participant_laps", "lap_positions", "session_end")
 # contract.json limits.sim_data_*; tests/test_contract_files.py keeps them equal.
 SIM_DATA_LIMITS = {"bytes": 16384, "depth": 6, "keys": 512, "items": 256, "text": 500,
                    "per_session": 5000}
@@ -411,7 +412,7 @@ class FakeCore:
     def _apply(self, kind: str, params: Any, connector: str) -> dict[str, Any]:
         if not isinstance(params, dict):
             raise _Refused("bad_request", "params must be an object")
-        msg = {k: v for k, v in params.items() if k not in ("session_key", "seq")}
+        msg = {k: v for k, v in params.items() if k not in ("session_key", "seq", "lap_seq")}
         msg["type"] = kind
         if kind not in ("catalog", "session_start", "sim_data_kinds"):
             msg["session_id"] = 1
@@ -422,6 +423,8 @@ class FakeCore:
             except ValueError as exc:
                 raise _Refused("bad_request", f"channels: {exc}") from None
             msg["channels"] = channels
+        if kind == "lap_positions":
+            msg["lap"] = 1      # Pitwall fills the lap from `lap_seq`; the schema needs a number
         error = next(iter(sorted(self._validators[kind].iter_errors(msg),
                                  key=lambda e: list(e.absolute_path))), None)
         if error is not None:
@@ -437,6 +440,8 @@ class FakeCore:
         session = self.sessions.get(key) if isinstance(key, str) else None
         if session is None:
             raise _Refused("unknown_session", f"session_key {key!r} was never started")
+        if kind == "lap_positions":
+            return self._lap_positions(session, params, msg, channels)
         if session["closed"]:
             raise _Refused("session_closed", f"session {key} has ended")
         if kind != "session_end":
@@ -454,7 +459,9 @@ class FakeCore:
             return {"ok": True, "type": "sim_data", "session_id": session["id"],
                     "record": session["records"], "stint": session["stint"], "stored": True}
         if kind == "lap":
-            return self._lap(session, msg, channels)
+            reply = self._lap(session, msg, channels)
+            session["lap_seqs"][params["seq"]] = reply["lap"]
+            return reply
         if kind == "pit_exit":
             new = session["laps_since_exit"] > 0
             session["stint"] += 1 if new else 0
@@ -516,7 +523,7 @@ class FakeCore:
                 other["closed"] = True
         self._next_session += 1
         self.sessions[key] = {"id": self._next_session, "closed": False, "seq": {}, "stint": 1,
-                              "laps": 0, "laps_since_exit": 0, "connector": connector,
+                              "laps": 0, "laps_since_exit": 0, "lap_samples": {}, "lap_seqs": {}, "connector": connector,
                               "key": key, "start": msg}
         return {"ok": True, "type": "session_start", "session_id": self._next_session}
 
@@ -531,8 +538,37 @@ class FakeCore:
                 raise _Refused("bad_request", "channels: the channels differ in length")
         session["laps"] += 1
         session["laps_since_exit"] += 1
+        session["lap_samples"][session["laps"]] = (
+            len(next(iter(channels.values()))) if channels else 0)
         return {"ok": True, "type": "lap", "session_id": session["id"], "lap": session["laps"],
                 "lap_id": session["laps"], "stint": session["stint"]}
+
+
+    def _lap_positions(self, session: dict[str, Any], params: dict[str, Any],
+                       msg: dict[str, Any], channels: dict[str, list[float]] | None
+                       ) -> dict[str, Any]:
+        """Accepted for an open or a closed session; the lap is named by `lap_seq`."""
+        lap_seq = params.get("lap_seq")
+        if isinstance(lap_seq, bool) or not isinstance(lap_seq, int) or lap_seq < 1:
+            raise _Refused("bad_request", "lap_positions.lap_seq: an integer >= 1 (the seq of "
+                                          "the lap's pitwall.write.lap)")
+        number = session["lap_seqs"].get(lap_seq)
+        if number is None:
+            raise _Refused("bad_request", f"lap_positions.lap_seq: no stored lap with seq "
+                                          f"{lap_seq} in session_key {session['key']}")
+        samples = session["lap_samples"].get(number, 0)
+        if samples <= 0:
+            raise _Refused("bad_request", f"lap_positions: lap {number} of session "
+                                          f"{session['id']} has no channels")
+        for name, values in (channels or {}).items():
+            if len(values) != samples:
+                raise _Refused("bad_request", f"lap_positions.channels.{name}: {len(values)} "
+                                              f"samples, lap {number} has {samples}")
+            if not all(math.isfinite(v) for v in values):
+                raise _Refused("bad_request", f"lap_positions.channels.{name}: every value "
+                                              "must be finite")
+        return {"ok": True, "type": "lap_positions", "session_id": session["id"],
+                "lap": number, "lap_id": number, "channels": sorted(channels or {})}
 
 
 class _Refused(Exception):
