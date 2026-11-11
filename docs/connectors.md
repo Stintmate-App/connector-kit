@@ -70,7 +70,8 @@ Before writing code, find (and write down in the connector's own docs, with how 
   after the car has driven on track.
 - **Lap type**: `formation` (before a race start), `out` (starts in the pits or the garage),
   `in` (ends in the pits or the garage, also when the player returns to the garage from a
-  menu), else `flying`. Only flying laps that are timed and valid are *clean* (used for bests).
+  menu), else `flying`. Only flying laps that are timed and valid, with no long four-wheel excursion, are *clean*
+  (used for bests; `data-model.md` has the rule).
 - **Lap time**: `time_s` only for a lap driven line to line; `time_source: official` when the
   simulator published it, `measured` when it is your own clock. Partial laps (to or from the
   pits, an aborted lap) have no `time_s`. Drop fragments of a few seconds.

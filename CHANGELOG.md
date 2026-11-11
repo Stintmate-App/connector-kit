@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.2 (2026-11-12)
+
+- **A clean lap now also excludes a long trip off the track.** `data-model.md` adds the rule: a lap with an excursion of all four wheels off track (from the wheel surface channels, outside the pits) of 2 s or more is not clean, even when the game left it valid, so it no longer counts for best laps, stints' bests, best sectors and averages. A lap without the wheel surface channels is judged as before. `connectors.md` and `events.md` point to the rule. Sending the four surface channels makes your laps judged this way.
+- No protocol change: `contract_version` stays 3 and the data model stays 2; nothing a connector sends changes.
+
 ## 0.7.1 (2026-11-11)
 
 - **Optional write methods only to a Pitwall that declares them.** `connector-protocol.md` section 3.3 now says how a connector handles `pitwall.write.sim_data_kinds`, `pitwall.write.sim_data` and `pitwall.write.lap_positions` with an older Pitwall: Pitwall declares every write method it accepts in its `welcome` declarations, so check before sending, drop an optional write the linked Pitwall does not declare (log once, not a refusal), and treat an `unknown_method` answer to an optional write the same way. Required writes keep the old rule.
