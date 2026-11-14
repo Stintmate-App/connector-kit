@@ -92,7 +92,10 @@ Before writing code, find (and write down in the connector's own docs, with how 
   the garage); see the data model. Keep the mapping tables in the connector.
 - **Live frame** (if you implement `live_frame`): the same ids and vocabulary as what you
   write, times in seconds and `null` when the simulator does not give a value (never `-1` or
-  `0` as "unknown"), the safety car marked.
+  `0` as "unknown"), the safety car marked. If the simulator publishes its own "the car must be
+  repaired" state, send it as `car.repair_needed` (true or false) and declare the feature `repair`;
+  leave the field out when it does not (a reader treats an absent field as unknown); never derive it
+  from thresholds on damage values.
 
 ## 4. The minimum useful lap
 

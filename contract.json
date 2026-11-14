@@ -261,7 +261,8 @@
       "notices",
       "translated_texts",
       "remembered_services",
-      "options"
+      "options",
+      "repair"
     ],
     "groups": [
       "laps",

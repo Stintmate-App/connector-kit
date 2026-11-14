@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0 (2026-11-14)
+
+- **Added the optional live-frame field `car.repair_needed` and the descriptor feature `repair`.** `repair_needed` is a boolean: `true` when the simulator itself says the car must be repaired, `false` when the simulator publishes that state and it is off, left out when it publishes none; set it only from the simulator's own state, never from thresholds on damage values. `live-frame.schema.json`, the sample, `contract.json` (`features` now has 23 names), `descriptor.md`, `levels.md`, `connector-protocol.md`, `data-model.md` and `connectors.md` carry it. The checker validates the field through the schema.
+- The protocol is otherwise unchanged: `contract_version` stays 3 and the data model stays 2. Older readers ignore the field, because unknown live-frame fields are kept or ignored, never refused.
+
 ## 0.7.2 (2026-11-12)
 
 - **A clean lap now also excludes a long trip off the track.** `data-model.md` adds the rule: a lap with an excursion of all four wheels off track (from the wheel surface channels, outside the pits) of 2 s or more is not clean, even when the game left it valid, so it no longer counts for best laps, stints' bests, best sectors and averages. A lap without the wheel surface channels is judged as before. `connectors.md` and `events.md` point to the rule. Sending the four surface channels makes your laps judged this way.
