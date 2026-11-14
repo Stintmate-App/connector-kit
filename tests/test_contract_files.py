@@ -171,7 +171,7 @@ def test_the_contract_json_carries_the_new_keys():
     assert vocab["position_channels"] == ["x", "z"]
     assert {"stopped", "starting", "loading", "connecting", "waiting_models", "waiting",
             "recording", "running"} == set(vocab["service_states"])
-    assert len(vocab["features"]) == len(set(vocab["features"])) == 22
+    assert len(vocab["features"]) == len(set(vocab["features"])) == 23
     assert not {"budgets", "write_errors", "contract_version"} & set(contract["limits"])
 
 
@@ -278,3 +278,24 @@ def test_lap_positions_method_feature_and_schema():
     assert {"$ref": "#/$defs/lap_positions"} in schema["oneOf"]
     channels = schema["$defs"]["lap_positions"]["properties"]["channels"]
     assert channels["required"] == ["x", "z"] and channels["additionalProperties"] is False
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_repair_needed_accepts_a_boolean(frame, value):
+    frame["car"]["repair_needed"] = value
+    assert list(validator("live-frame").iter_errors(frame)) == []
+
+
+def test_repair_needed_may_be_left_out(frame):
+    frame["car"].pop("repair_needed", None)
+    assert list(validator("live-frame").iter_errors(frame)) == []
+
+
+@pytest.mark.parametrize("value", ["yes", 1, None])
+def test_repair_needed_refuses_another_type(frame, value):
+    frame["car"]["repair_needed"] = value
+    assert list(validator("live-frame").iter_errors(frame))
+
+
+def test_repair_is_a_known_feature():
+    assert "repair" in load(ROOT / "contract.json")["vocabularies"]["features"]

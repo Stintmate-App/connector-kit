@@ -84,6 +84,7 @@ Connectors map their simulator's own values onto these. The exact lists are in
   (touching a barrier), `8` other off-track (dirt, verge, bank). Off track = codes 2..8; two
   or more wheels off track is an excursion; 7 is wall contact. A simulator material that is
   not clearly one of these is road.
+- **Repair needed** (`car.repair_needed` in the live frame, not a channel): a boolean that is `true` when the simulator itself says the car must be repaired, `false` when the simulator publishes that state and it is off; leave it out when the simulator publishes no such state. Set it only from the simulator's own state, never from thresholds on damage values. A reader treats an absent field as unknown. Declare the feature `repair`.
 - **Pit mode** (`pit_mode` channel): `0` on track, `1` driving into the pits, `2` in the pit
   box, `3` driving out of the pits (or the garage), `4` in the garage. Only 0 is on track.
 
